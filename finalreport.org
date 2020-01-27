@@ -1,0 +1,3110 @@
+
+
+* latex preamble
+#+BEGIN_EXPORT latex
+\begin{titlepage}
+\begin{center}
+{\Large University College Cork \par}
+\vspace{1cm}
+{\Large Master's Thesis \par}
+\vspace{1cm}
+\includegraphics[]{~/Pictures/ucc_crest.png}
+\vspace{1cm}
+
+{\Huge Process Mining \par}
+
+
+{\Large Richard Collins \par}
+\vspace{2cm}
+supervised by\\
+{\large Dr. Steve Prestwich}\\
+{\large 2019-09-01 Sun }
+\end{center}
+\vfill
+\end{titlepage}
+
+
+\pagebreak
+\begin{center}
+\section*{Declaration}
+I, Richard Collins, declare that all work presented within is my own and where the information has been taken other sources, those papers or websites have been cited.
+\section*{Acknowledegements}
+I have some people to thank.\\ \\
+I would like to thank Dr. Steve Prestwich for agreeing to take on this project with me, and providing advice, support, and experience for it's duration.\\
+I would like to thank Martin Brown, Dhanya Jayachandra and Madhan Balasubramanian at Unitek.BPI for the ideas and inspiration and data to work with.\\
+I would like to thank the my friends and my family for your herculean support.\\
+And you. For reading this. Thank you.\\ 
+\end{center}
+\tableofcontents
+#+END_EXPORT
+
+* code                                                             :noexport:
+  :PROPERTIES:
+  :header-args:  :tangle no :exports none :eval no  
+  :END:
+
+  #+PROPERTY: header-args 
+** preamble
+#+name:pm4py4test-set_cleaning_params
+#+BEGIN_SRC jupyter-python :session final :eval yes :display plain :var istring = "usedonitsown" decreasingFactor = 1 keep_percent =1
+nil=0
+cleaning_parameters = [istring,decreasingFactor,keep_percent]
+import os
+here = "./"+istring+"/"
+try:
+    os.mkdir(here)
+except:
+    pass
+#cleaning_parameters
+#+END_SRC
+
+
+
+
+#+name:pm4py4test-preamble
+#+BEGIN_SRC jupyter-python :session final :results raw
+import pickle
+import pandas as pd
+import numpy as np 
+import pm4py
+import string
+import scipy.stats as st
+np.set_printoptions(precision=3,linewidth=270,sign=" ",suppress=False)
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from tabulate import tabulate
+import copy
+nil = 0
+printorgtable = lambda tbl: print(tabulate(tbl,headers="keys",tablefmt="latex_raw"))
+#+END_SRC
+
+
+
+pm4py imports go here
+#+name:pm4py4test-preamble-pm4py
+#+BEGIN_SRC jupyter-python :session final
+from pm4py.objects.log.adapters.pandas import csv_import_adapter
+from pm4py.objects.conversion.log import factory as conversion_factory
+from pm4py.objects.log.importer.csv import factory as csv_importer
+import pm4py.objects.log.util.prefix_matrix as prefix_stuff
+from pm4py.objects.log.util.get_prefixes import get_log_with_log_prefixes
+from pm4py.objects.conversion.log.versions import to_dataframe
+from pm4py.objects.conversion.log import factory as log_conv_factory
+from pm4py.objects.log.util import get_log_representation
+from pm4py.objects.petri.reachability_graph import construct_reachability_graph
+import pm4py.objects.petri.check_soundness as soundness
+
+
+from pm4py.algo.conformance.tokenreplay import factory as token_replay
+from pm4py.algo.conformance.tokenreplay import diagnostics 
+from pm4py.algo.discovery.dfg import factory as dfg_factory
+from pm4py.algo.discovery.inductive import factory as inductive_miner
+
+
+
+
+
+from pm4py.visualization.process_tree import factory as pt_vis_factory
+from pm4py.visualization.petrinet import factory as pn_vis_factory
+from pm4py.visualization.petrinet.util.vis_trans_shortest_paths import get_decorations_from_dfg_spaths_acticount
+from pm4py.visualization.petrinet.util.vis_trans_shortest_paths import get_shortest_paths
+from pm4py.visualization.petrinet.util import performance_map
+
+import pm4py.algo.filtering.pandas as pdfilter 
+
+
+
+
+from pm4py.algo.filtering.log.attributes import attributes_filter
+from pm4py.algo.filtering.log.variants import variants_filter as vfilter
+
+import pm4py.statistics.traces.pandas.case_statistics as pdtrix
+
+from pm4py.util import constants
+import copy
+
+#+END_SRC
+
+#+RESULTS:
+#+name:pm4py4test-import_consts
+#+BEGIN_SRC jupyter-python :session final :display plain noweb=yes 
+import pm4py.algo.filtering.log.attributes.attributes_filter
+#idstring = "bigdataframe"
+acceptreject = lambda b: "accepted" if b==True else "rejected" 
+
+consts = [
+constants.PARAMETER_CONSTANT_ACTIVITY_KEY,
+constants.PARAMETER_CONSTANT_ATTRIBUTE_KEY,
+constants.PARAMETER_CONSTANT_CASEID_KEY,
+constants.PARAMETER_CONSTANT_RESOURCE_KEY,
+constants.PARAMETER_CONSTANT_START_TIMESTAMP_KEY,
+constants.PARAMETER_CONSTANT_TIMESTAMP_KEY,
+constants.PARAMETER_CONSTANT_TRANSITION_KEY]
+#pdb.set_trace()
+
+name_dict = {"activity":"concept:name",
+            "attr1":"case:responsible",
+	    "case":"case:concept:name",
+            "t_stamp":"time:timestamp"
+}
+
+par_dict = {consts[0]:"concept:name",
+            consts[1]:"case:responsible",
+	    consts[2]:"case:concept:name",
+            consts[6]:"time:timestamp"
+	   # consts[5]:"case:startdate"
+}
+
+
+idstring = cleaning_parameters[0]
+par_dict["decreasingFactor"]=cleaning_parameters[1]
+par_dict["keep_percent"] = cleaning_parameters[2]
+
+idstring = idstring + "{}pc_{}df".format(int(par_dict["keep_percent"]*100),int(par_dict["decreasingFactor"]*100))
+print(idstring)
+
+#par_dict["decreasingFactor"] = 0.6 
+#idstring = idstring + str(int(par_dict["decreasingFactor"]*100)) + "pc"
+par_dict_pd = par_dict
+
+#par_dict_pd["max_variants_to_return"] = 20
+#+end_src
+
+
+
+** unitek preamble
+#+name:unitekinnogyfinal-preamble-pm4py
+#+BEGIN_SRC jupyter-python :session final :eval no
+from pm4py.objects.log.adapters.pandas import csv_import_adapter
+from pm4py.objects.conversion.log import factory as conversion_factory
+from pm4py.objects.log.importer.csv import factory as csv_importer
+import pm4py.objects.log.util.prefix_matrix as prefix_stuff
+from pm4py.objects.log.util.get_prefixes import get_log_with_log_prefixes
+from pm4py.objects.conversion.log.versions import to_dataframe
+from pm4py.objects.conversion.log import factory as log_conv_factory
+from pm4py.objects.log.util import get_log_representation
+from pm4py.objects.petri.reachability_graph import construct_reachability_graph
+import pm4py.objects.petri.check_soundness as soundness
+
+
+from pm4py.algo.conformance.tokenreplay import factory as token_replay
+from pm4py.algo.conformance.tokenreplay import diagnostics 
+from pm4py.algo.discovery.dfg import factory as dfg_factory
+from pm4py.algo.discovery.inductive import factory as inductive_miner
+
+np.set_printoptions(precision=3,linewidth=250,sign=" ",suppress=False)
+
+
+
+from pm4py.visualization.process_tree import factory as pt_vis_factory
+from pm4py.visualization.petrinet import factory as pn_vis_factory
+from pm4py.visualization.petrinet.util.vis_trans_shortest_paths import get_decorations_from_dfg_spaths_acticount
+from pm4py.visualization.petrinet.util.vis_trans_shortest_paths import get_shortest_paths
+from pm4py.visualization.petrinet.util import performance_map
+
+import pm4py.algo.filtering.pandas as pdfilter 
+
+
+
+
+from pm4py.algo.filtering.log.attributes import attributes_filter
+from pm4py.algo.filtering.log.variants import variants_filter as vfilter
+
+import pm4py.statistics.traces.pandas.case_statistics as pdtrix
+printorgtable = lambda tbl: print(tabulate(tbl,headers="keys",tablefmt="orgtbl"))
+
+from pm4py.util import constants
+#+END_SRC
+
+
+#+name: unitekinnogyfinal-data-import_consts
+#+BEGIN_SRC jupyter-python :session final :display plain :eval never 
+from pm4py.util import constants
+import pm4py.algo.filtering.log.attributes.attributes_filter
+#par_dict["decreasingFactor"] = 0.6 
+#idstring = idstring + str(int(par_dict["decreasingFactor"]*100)) + "pc"
+
+consts = [
+constants.PARAMETER_CONSTANT_ACTIVITY_KEY,
+constants.PARAMETER_CONSTANT_ATTRIBUTE_KEY,
+constants.PARAMETER_CONSTANT_CASEID_KEY,
+constants.PARAMETER_CONSTANT_RESOURCE_KEY,
+constants.PARAMETER_CONSTANT_START_TIMESTAMP_KEY,
+constants.PARAMETER_CONSTANT_TIMESTAMP_KEY,
+constants.PARAMETER_CONSTANT_TRANSITION_KEY]
+#pdb.set_trace()
+acceptreject = lambda b: "accepted" if b==True else "rejected" 
+name_dict = {"activity":"label",
+	    "case":"PROC_REF",
+            "t_stamp":"CE_TIMESTAMP"}
+
+#pdb.set_trace()
+par_dict = {consts[0]:"label",
+	    consts[2]:"PROC_REF",
+            consts[5]:"CE_TIMESTAMP"}
+
+idstring = "innogy"
+idstring = cleaning_parameters[0]
+par_dict["decreasingFactor"]=cleaning_parameters[1]
+par_dict["keep_percent"] = cleaning_parameters[2]
+
+idstring = idstring + "{}pc_{}df".format(int(par_dict["keep_percent"]*100),int(par_dict["decreasingFactor"]*100))
+print(idstring)
+
+#+end_src
+
+** import and cleaning unitek
+*** import data
+#+name: unitekinnogyfinal-data-import_loadnclean
+#+BEGIN_SRC jupyter-python :session final :display plain
+#cleaning
+cel = pd.read_csv("celonis_converted.csv",index_col=0)
+cel["PROC_REF"] = cel["CE_CASE_ID"].str.slice(10)
+cel["CE_TIMESTAMP"] = pd.to_datetime(cel["CE_TIMESTAMP"]) 
+cel = cel[["PROC_REF","CE_TIMESTAMP","CE_ACTIVITY.1"]]
+#If we need code to turn the labels into one character (maybe 2 character) codes, heres where its done
+# cel["CE_ACTIVITY.2"] = cel["CE_ACTIVITY.1"].astype("category")
+# cel["CE_ACTIVITY.2"].cat.categories = list(string.ascii_uppercase)[0:len(cel["CE_ACTIVITY.2"].cat.categories)]
+# 
+# extract the process code from the ce_activity.1 string.
+#print(cel["CE_ACTIVITY.1"].unique())
+# activity key - denotes the activity type... i think. the first part of the descriptor string
+a_key = r"(?P<a_key>^\d{4})"
+# event key. specifies the type of event in an activity.
+e_key = r"/(?P<e_key>\d{4})"
+# codes in square brackets []
+sq_code =  r"(?P<sq_code>\[\w*\])"
+# codes in round brackets ()
+rd_code = r"(?P<rd_code>\(\w{0,2}\d{0,5}\))"
+#text in round brackets
+rd_text = r"(?P<rd_text>\(\w*\))"
+#seemingly important codes in the body of the description
+#naked_code = r"(?P<naked_code>[^\([^\]]\w{0,2}\d{1,5})"
+#putting it all together
+activity_colnames = ["a_key","e_key","sq_code","rd_code","rd_text"]
+activity_regexes = [a_key,e_key,sq_code,rd_code,rd_text]
+for reg,colname in zip(activity_regexes,activity_colnames): 
+    cel[colname] = cel["CE_ACTIVITY.1"].str.extract(reg)
+#    print(cel[colname].unique())
+
+uniquelabels = [i + j for i in string.ascii_uppercase for j in string.ascii_uppercase]
+
+cel["label"] = "{" + cel[activity_colnames].fillna("").apply(lambda s: "-".join(s),axis=1) + "}"
+print(cel["label"].unique()) 
+cel.drop(columns=activity_colnames,inplace=True)
+#comment this out if you need the long labels
+cel[name_dict["activity"]] = cel[name_dict["activity"]].astype("category")
+cel[name_dict["activity"]].cat.categories = uniquelabels[0:len(cel[name_dict["activity"]].cat.categories)]
+cel[name_dict["activity"]] = cel[name_dict["activity"]].astype(str)
+cel.tail()
+
+
+
+
+cel.head()
+dataframe = cel
+#check for duplicates
+#check for startyness and endyness
+#check for 0 time processes
+#check for chained 0 time processes
+#check for proximity to endy activities 
+log = log_conv_factory.apply(cel,parameters = par_dict)
+log_prefilter = copy.deepcopy(log)
+#+END_SRC
+
+
+** import and cleaning 
+*** import data 
+#+name:pm4py4test-import_loadnclean
+#+BEGIN_SRC jupyter-python :session final :display plain 
+biggerdata = "/home/river/werk/unitek/pm4py-source/tests/input_data/receipt.csv"
+
+dataframe = csv_import_adapter.import_dataframe_from_path(biggerdata, sep=",")
+
+#import pm4py.objects.conversion.log.versions.to_event_log as stream2log
+#stream0 = csv_importer.import_event_log("./pm4py-source/tests/input_data/running-example.csv")
+#log0 = stream2log.apply(stream0)
+#mixing it up a bit so the parameters get invoked manually
+
+#dataframe.columns = ["0","1","2","othername","4","5","6","7"]
+#case:concept:name is the case_id
+#concept:name is the activity name
+# time:timestamp is the timestamp
+# renaming the activities themselves for nice clean prefixes
+dataframe[name_dict["activity"] + ":old"] = dataframe[name_dict["activity"]]
+
+dataframe[name_dict["activity"]] = dataframe[name_dict["activity"]].astype("category")
+dataframe[name_dict["activity"]].cat.categories = list(string.printable)[0:len(dataframe[name_dict["activity"]].cat.categories)]
+dataframe[name_dict["activity"]] = dataframe[name_dict["activity"]].astype(str)
+dataframe.tail()
+log = log_conv_factory.apply(dataframe,parameters = par_dict)
+log_prefilter = copy.deepcopy(log)
+
+#+end_src
+
+
+
+
+*** cleaning out bad processes
+#+name: pm4py4test-variant-count
+#+BEGIN_SRC jupyter-python :session final 
+#useful for parameterisation
+variants_idx = vfilter.get_variants_from_log_trace_idx(log,parameters=par_dict)
+variants = vfilter.convert_variants_trace_idx_to_trace_obj(log, variants_idx)
+par_dict["variants"] = variants
+par_dict["variants_prefilter"] = variants
+par_dict_prefilter = copy.deepcopy(par_dict)
+
+activities_count = attributes_filter.get_attribute_values(log, name_dict["activity"] ,parameters=par_dict)
+variants_count = vfilter.get_variants_sorted_by_count(variants)
+variants_count_df = pd.DataFrame(variants_count)
+def get_variant_count_df(loggo):
+#convenience function to run on logs and immediately see all the variants.
+    variants_idx = vfilter.get_variants_from_log_trace_idx(loggo,parameters=par_dict)
+    variants = vfilter.convert_variants_trace_idx_to_trace_obj(loggo, variants_idx)
+    par_dict["variants"] = variants
+    
+#    activities_count = attributes_filter.get_attribute_values(loggo, name_dict["activity"] ,parameters=par_dict)
+    variants_count = vfilter.get_variants_sorted_by_count(variants)
+    variants_count_df = pd.DataFrame(variants_count)
+    variants_count_df[2] = variants_count_df[1].cumsum()/sum(variants_count_df[1])
+    return(variants_count_df)
+
+
+#+END_SRC
+
+
+#+name: pm4py4test-import_filter
+#+BEGIN_SRC jupyter-python :session final :exports both
+
+import pm4py.algo.filtering.log.end_activities.end_activities_filter as endfilter
+import pm4py.algo.filtering.log.start_activities.start_activities_filter as startfilter	
+
+
+
+#this needs some explanation.
+#the decreasing factor is a factor defined in pm4py as an "acceptance ratio" for ending and starting activities.
+#given a collection of traces <a,b,c,d,f>,<a,b,c,d,e>,<a,b,c,d,e>,<a,b,c,d,e>
+#a decreasing factor of 0.75 or higher will accept f as a valid ending activity
+par_dict["old_decfactor"] = par_dict["decreasingFactor"]
+occur = [1,0.75,0.5,0.25,0,par_dict["old_decfactor"]]
+percentage = [1.0,0.9,0.75,0.55,0.3,par_dict["keep_percent"]]
+#for decfactor in occur:
+    #for percent in percentage:
+        
+def filter_this_log_by(log_in,occur=1,percent=0.95,parameters=par_dict):
+    par_dict["decreasingFactor"] = occur
+    log_out = copy.deepcopy(log_in)
+    variants_idx = vfilter.get_variants_from_log_trace_idx(log_out,parameters=par_dict)
+    variants = vfilter.convert_variants_trace_idx_to_trace_obj(log_out, variants_idx)
+    par_dict["variants"] = variants   
+  
+    #par_dict["decreasingFactor"] = decfactor
+    #applying the decreasing factor to the start and end activities
+    log_out = endfilter.apply_auto_filter(startfilter.apply_auto_filter(vfilter.filter_log_by_variants_percentage(log_in,variants,percent),parameters=par_dict),parameters=par_dict)
+    starts = startfilter.get_start_activities(log_out)
+    ends = endfilter.get_end_activities(log_out)
+    print(starts,"\n",ends)
+    #i hate that placing this before anything to do with the variants in par_dict
+    #just makes it work 
+    variants_idx = vfilter.get_variants_from_log_trace_idx(log_out,parameters=par_dict)
+    variants = vfilter.convert_variants_trace_idx_to_trace_obj(log_out, variants_idx)
+    par_dict["variants"] = variants   
+  
+    activities_count = attributes_filter.get_attribute_values(log_out, name_dict["activity"] ,parameters=par_dict)
+    variants_count = vfilter.get_variants_sorted_by_count(variants)
+    variants_count_df = pd.DataFrame.from_dict(variants_count)
+    ratio = len(log_out)/len(log_in)
+    report = "percentage {} ,decreasing factor = {}\n ratio = {},variant_count = {}\n".format(percent,occur,ratio,variants_count_df.shape[0])
+    returned_dict = {"newlog":log_out, "activities_count":activities_count,"variants_count_df":variants_count_df}
+    return(returned_dict)
+
+
+
+#cleanup
+#interesting bug can happen here
+# if you set par_dict["variants"] to something, pm4py will NOT ignore that parameter, even if
+# strictly speaking it's probably irrelevant to the function at hand.
+#it'll probably pass it to a function down the line and mess you up.
+#either remove it, or set it like below.
+#don't just set it to None and hope for the best.
+
+par_dict["decreasingFactor"] = par_dict["old_decfactor"]
+filtration = filter_this_log_by(log_prefilter,occur=par_dict["decreasingFactor"],percent=par_dict["keep_percent"])
+log = filtration["newlog"]
+activities_count = filtration["activities_count"]
+variants_count_df = filtration["variants_count_df"] 
+
+
+variants_idx = vfilter.get_variants_from_log_trace_idx(log,parameters=par_dict)
+variants = vfilter.convert_variants_trace_idx_to_trace_obj(log, variants_idx)
+par_dict["variants"] = variants   
+#todo: make the loop that prints thru all percents and occurs again but with dataframes
+#and optional
+print(variants_count_df)   
+#+END_SRC
+
+
+
+
+
+*** a useful hack - redefining the __repr__ method in trace and logs for cleanliness
+#+name:pm4py4test-repr-hack
+#+BEGIN_SRC jupyter-python :session final 
+def tracerepr(trace, ret_list=False,activity="concept:name"):
+    if ret_list ==False:
+        return(str([e[activity] for e in trace]))
+    else:
+        return([e[activity] for e in trace])
+
+log[0].__class__.__repr__ = tracerepr
+print(log)
+#+END_SRC
+
+#+RESULTS:
+
+
+
+
+** fit - all defined as long as the log is defined
+*** fitting stuff!
+#+name:pm4py4test-fit_dfg_pt
+#+BEGIN_SRC jupyter-python :session final 
+#log = log_conv_factory.apply(dataframe,parameters = par_dict)
+#some pm4py jargon
+#frequency is the amount of time the directly follows relation "a happens in the log, then b happens in the log"
+#performance is an aggregated statistic (default: mean) amount of time spent performing a -> b
+#or rather, the mean differences between the timestamps of a -> b  
+print(type(log))
+
+#frequency and performance annotations are baked into the dfgs
+#as such dfg_frequency and dfg_performance are two different objects
+dfg_frequency = dfg_factory.apply(log,parameters=par_dict,variant="frequency")
+dfg_performance = dfg_factory.apply(log,parameters=par_dict,variant="performance")
+#a nice way to represent it
+dfgdf = pd.DataFrame(dfg_frequency.values(),index=dfg_frequency.keys())
+#this is a critical line
+#this is where the petri net gets made out of the data
+#i'm using pm4py's implementation of the IMDF (Inductive Miner, Directly Follows based) algorithm
+#which guarantees bounded, sound (can always be completed) petri nets with clearly defined start and end points
+#disadvantages? hidden transitions. lots of hidden transitions. no feature reduction, likely to make massive sprawling structures
+#generally speaking works pretty robustly with the markov chain system down the page 
+net, initial_marking, final_marking = inductive_miner.apply(log, parameters=par_dict)
+
+#is the net sound?
+net_sound = soundness.check_soundness_wfnet(net)
+net_workflow = soundness.check_wfnet(net)
+print("sound = {} , wfnet = {}".format(net_sound,net_workflow))
+#should both be true for anything done with the inductive miner
+#+END_SRC
+
+**** prefix and variant matrices
+This is important, but not necessary for the running of the code. It's more of a diagnostic. This is a very important thing for filtering the dataframe.
+Firstly, contextwise, this can tell us what our ideal end and start activities should be and
+where abouts our cases should end.
+In this case, we can see pretty clearly that we have a fair variety in "things that happen and how they end"
+As well as that, it's also a possible structure on which to train models. More on that later.
+#+name:pm4py4test-prefixvariantmatrices
+#+BEGIN_SRC jupyter-python :session final  :results plain
+#note to self
+plist,names = prefix_stuff.get_prefix_matrix(log=log,parameters=par_dict)
+#a,b,c = prefix_stuff.get_prefix_variants_matrix(log,parameters=par_dict) #bugged one
+vlist,names = prefix_stuff.get_variants_matrix(log=log,parameters=par_dict)
+names = np.array(names)
+pnames = np.char.multiply(names,plist)
+vnames = np.char.multiply(names,vlist)
+#on the receipts.csv dataset
+#results in a np.array string representation of trace 1 in the running-example csv
+#the reason why b is only of length 4, is because trace 1 is the same as trace 4, and trace 2 is the same as 6
+#then 5 and 4 are the looped traces.
+print("prefixes=\n",pnames)
+print("variants=\n",vnames)
+#+END_SRC
+OKAY SO THAT BIG VARIANT REPEATED 713 TIMES! (IN THE DATASET)
+so thats not a loop that occurs 713 times, thats the trace occuring 713 times in the dataset.
+that clears that up.
+possible bug to report to pm4py devs: the prefix matrix from get_prefix_variants_matrix 
+This is nice to have, but totally un-necessary
+#+name:pm4py4test-fit_tree
+#+BEGIN_SRC jupyter-python :session final 
+tree = inductive_miner.apply_tree(log,parameters=par_dict)
+tree_gviz = pt_vis_factory.apply(tree)
+print(tree)
+#+END_SRC
+**** plotting
+ #+name: pm4py4test-plot-all
+ #+BEGIN_SRC jupyter-python :session final :exports both :file panel_netsanddfgs.png
+#WARNING
+#FOR LARGE DATASETS THIS CAN TAKE A LONG TIME
+import matplotlib.pyplot as plt
+import matplotlib.image as mpimg
+
+
+
+
+
+fig,all_ax = plt.subplots(2,2,figsize=(10,15),dpi=200,constrained_layout=True)
+fig.patch.set_facecolor('white')
+#(IF RICHARD RUNS THIS, IT WILL LOCK UP THEIR LAPTOP FOR LIKE, 10 MINUTES 
+#AND PROBABLY CRASH IF YOU MESS WITH IT WHILE ITS RUNNING
+#prints place names on the petri net
+par_dict["debug"] = True
+#petri net annotated with performance stats
+gviz_performance = pn_vis_factory.apply(net, initial_marking, final_marking, variant="performance",parameters=par_dict,log=log)
+gviz_performance.format = "png"
+gviz_performance.graph_attr["bgcolor"] = "white"
+
+
+#petri net annotated with frequency stats
+gviz_frequency = pn_vis_factory.apply(net, initial_marking, final_marking, variant="frequency",parameters=par_dict,log=log)
+gviz_frequency.format = "png"
+gviz_frequency.graph_attr["bgcolor"] = "white"
+#rendering. idstring defined up the top near the consts
+gviz_performance.render(here+idstring + "performance")
+gviz_frequency.render(here+idstring + "frequency")
+#note: annotations on the directly-follows graphs are baked directly into them
+#dfg annotated with frequency information
+#as such dfg_frequency and dfg_performance are two different objects
+dfg_frequency_gviz = pm4py.visualization.dfg.factory.apply(dfg_frequency)
+#dfg annotated with performance information
+dfg_performance_gviz = pm4py.visualization.dfg.factory.apply(dfg_performance)
+dfg_frequency_gviz.format = "png"
+dfg_performance_gviz.format = "png"
+dfg_frequency_gviz.graph_attr["bgcolor"] = "white"
+dfg_performance_gviz.graph_attr["bgcolor"] = "white"
+#dfg_as_graph.view()
+
+dfg_frequency_gviz.render(here+idstring + "dfg-freq")
+dfg_performance_gviz.render(here+idstring + "dfg-perf")
+
+all_ax[0,0].imshow(mpimg.imread(here+idstring + "performance.png"))
+all_ax[0,1].imshow(mpimg.imread(here+idstring + "frequency.png"))
+all_ax[1,0].imshow(mpimg.imread(here+idstring + "dfg-perf.png"))
+all_ax[1,1].imshow(mpimg.imread(here+idstring + "dfg-freq.png"))
+for ax in all_ax.ravel():
+    ax.axis("off")
+fig.suptitle("Frequency and Performance annotated Workflow nets and Directly-Follows graphs")
+#plt.show()
+plt.savefig(idstring+"netsanddfgs.png")
+
+ #+END_SRC
+
+
+
+*** further investigation
+ Heres another target for models: the average amount of time it takes to complete a given case.
+ A great model could be fit here on a recursively filled log (where it works, hopefully pm4py devs may have fixed that function since last I tried)
+ but it could get big, fast.
+ #+name:pm4py4test-casestats
+ #+BEGIN_SRC jupyter-python :session final  :display plain
+casestats = pdtrix.get_variants_df_with_case_duration(dataframe,parameters=par_dict)
+casestats.head()
+ #+END_SRC
+
+**** what has gone wrong with variants dfs??
+This is where I try and get the recursively filled log
+(ie. gets the time taken to get <a>,<a,b>,<a,b,c>,<a,b,c,d>,<a,b,c,d,e>)
+Come back to this when you use the new version of pm4py with the working recursively filled logs and make some neat models
+#+name:pm4py4test-extended_log
+#+BEGIN_SRC jupyter-python :session final 
+ex_log = get_log_with_log_prefixes(log,parameters=par_dict)
+dfrt = to_dataframe.apply(log,parameters=par_dict)
+prefixes = pdtrix.get_variants_df_with_case_duration(dfrt,parameters=par_dict_pd)
+#pdb.set_trace()
+ex_dfrt = to_dataframe.apply(ex_log,parameters=par_dict)
+ex_prefixes = pdtrix.get_variants_df_with_case_duration(ex_dfrt,parameters=par_dict_pd)
+
+data, feature_names = get_log_representation.get_representation(log, str_tr_attr=[name_dict["attr1"]], str_ev_attr=[name_dict["activity"]], num_tr_attr=[],num_ev_attr=[name_dict["t_stamp"]],str_evsucc_attr=[name_dict["activity"]])
+data_df = pd.DataFrame(data,columns=feature_names)
+#lets fit on this later
+#j = None
+#for i in ex_log: 
+#    if j != i:
+#        print("i=",i)
+#        j = i
+#    else:
+#        print("skip")
+
+#+END_SRC
+
+note: 
+
+ext_log = get_log_with_log_prefixes(log)
+data, feature_names = get_log_representation.get_representation(ext_log,str_tr_attr,str_ev_attr, num_tr_attr,num_ev_attr,str_evsucc_attr=str_evsucc_attr)
+IS THE KEY INCANTATION HERE
+especially the str_evsucc_attr. it accounts for directly-follows relationships between activities.
+however, the code in [[./designmatrix_for_rnn]], while it generates the timestamp diffs perfectly, it all
+hinges on the get_log_with_log_prefixes stuff to get the traces right. which it does not.
+
+*** estimating fitness
+ Fitness is an evaluation of how much the petri net gets right.
+ It's evaluated on a metric based on how many tokens it takes to get from start to finish.
+ It can penalise a model very strongly if it has tokens remaining, and that part of the fitness calculation can be turned off.
+ On this version of the model on this data, it rips it apart for that or split at p_7.
+ Come back to this to get some better evaluations (precision, generalisation) or to evaluate alternate data cleaning methods.
+#+name:pm4py4test-fitness_alignment
+ #+BEGIN_SRC jupyter-python :session final 
+par_dict["enable_pltr_fitness"] = True
+aligned_traces, place_fitness, trans_fitness, notexisting_activities_in_model= token_replay.apply(log, net, initial_marking, final_marking,parameters=par_dict) 
+fit_traces = [x for x in aligned_traces if x['trace_is_fit']]
+unfit_traces = [x for x in aligned_traces if not x["trace_is_fit"]]
+
+perc_fitness = 0.00
+if len(aligned_traces) > 0:
+    perc_fitness = len(fit_traces) / len(aligned_traces)
+print("fitness=", perc_fitness)
+
+ #+END_src
+
+
+**** diagnosing fitness problems (WORK IN PROGRESS)
+warning: very spammy.
+#+name:pm4py4test-fitness-alignment-diagnostics
+#+BEGIN_SRC jupyter-python :session final 
+
+def diagnose(trace):
+    fitness = trace["trace_fitness"]
+    state = trace["reached_marking"]
+    enabled_transitions = trace["enabled_transitions_in_marking"]
+    problemtransitions = trace["transitions_with_problems"]
+    m = trace["missing_tokens"]
+    c = trace["consumed_tokens"]
+    r = trace["remaining_tokens"]
+    p = trace["produced_tokens"]
+    diagstring = " state = {}\n enabled_transitions = {}\n problems = {}, (m,c,r,p,fitness)={}\n\n".format(state,enabled_transitions,problemtransitions,(m,c,r,p,fitness))
+    return(diagstring)
+
+diagnostics = [diagnose(case) for case in unfit_traces]
+j = 0
+lasti = []
+for i in diagnostics:    
+    if(lasti != i):
+        print(i)
+        lasti = i
+        j = 0
+    else:
+        j += 1
+        print("again" + str(j))
+
+
+#+END_SRC
+
+
+**** finding more than fitness
+#+name:pm4py4test-petrimeasures_alignment
+#+BEGIN_SRC jupyter-python :session final 
+# measure precision (through a variant of the ETConformance algorithm)
+from pm4py.evaluation.precision import factory as precision_factory
+from pm4py.evaluation.simplicity import factory as simplicity_factory
+from pm4py.evaluation.generalization import factory as generalization_factory
+
+precision = precision_factory.apply(log, net, initial_marking,final_marking,parameters=par_dict)
+print(precision)
+
+
+# measure generalization (through Bujis technique)
+
+generalization = generalization_factory.apply(log, net, initial_marking,final_marking,parameters=par_dict)
+print(generalization)
+
+
+# measure simplicity (through arc degree)
+
+simplicity = simplicity_factory.apply(net,parameters=par_dict)
+print(simplicity)
+
+netsummary = {"Fitness":perc_fitness,"Simplicity":simplicity,"Generalisation":generalization,"Ratio of traces used":len(log)/len(log_prefilter),"Percentage of most frequent variants":keep_percent,"Decreasing Factor":par_dict["decreasingFactor"]}
+
+netsummarydf = pd.DataFrame.from_dict(netsummary,orient="index",columns=["Values"])
+netsummarydf.to_pickle(here+idstring+"netsummarydf.pkl")
+#+END_SRC
+
+#+name:pm4py4test-fitness_alignment-prefilter
+ #+BEGIN_SRC jupyter-python :session final 
+par_dict["enable_pltr_fitness"] = True
+aligned_traces, place_fitness, trans_fitness, notexisting_activities_in_model= token_replay.apply(log, net, initial_marking, final_marking,parameters=par_dict) 
+fit_traces = [x for x in aligned_traces if x['trace_is_fit']]
+unfit_traces = [x for x in aligned_traces if not x["trace_is_fit"]]
+
+perc_fitness = 0.00
+if len(aligned_traces) > 0:
+    perc_fitness = len(fit_traces) / len(aligned_traces)
+print("fitness=", perc_fitness)
+
+ #+END_src
+
+ #+RESULTS: pm4py4test-fitness_alignment
+ : fitness= 1.0
+
+
+
+
+
+*** Getting data from the alignment
+This is a lot of comments for 3 lines of code. It took me a lot of time to figure out where the notion of frequency was coming from in the petri net annotation.
+This was done in the name of weighting likely and unlikely paths in the petri net for the sake of not letting quick transitions dominate the paths taken in the petri net.
+#+name:pm4py4test-pn_scraping
+#+BEGIN_SRC jupyter-python :session final  :display plain
+from pm4py.objects.petri.petrinet import PetriNet
+#risky function but it's useful in the event all the sets we have
+#(which by virtue of the fact that we have workflow nets)
+#are singletons
+el = lambda x: next(iter(x))
+#do the replay
+#aligned_traces = token_replay.apply(log, net, im, fm)
+#pdb.set_trace()
+
+#uncomment this stuff to find out what counts are available.
+#theres a few.
+#this caused some confusion.
+#eventually settled on the number of times activated as an indicator of how many times a transition was crossed relative to the amount of times it could have been activated:
+#ie. the number of times enabled
+#transition_fiveples =\
+#[(
+#str(el(transition.in_arcs).source),
+#str(el(transition.in_arcs)),
+#str(transition), 
+#str(el(transition.out_arcs)),
+#str(el(transition.out_arcs).target))
+#for transition in net.transitions]
+#okay so i figured it out from the pm4py github
+#the weight that they use is N_activated vs. N_enabled. which makes sense
+#but is not related in any way to the place statistics.
+#likely the place statistics have something to do with the number of tokens in it.
+#and this has more to do with raw frequency.
+element_statistics = performance_map.single_element_statistics(log, net, initial_marking, aligned_traces,variants_idx,activity_key=name_dict["activity"], timestamp_key=name_dict["t_stamp"])
+transition_dict = {str(key):(value["performance"],value["no_of_times_activated"]/value["no_of_times_enabled"]) for key, value in element_statistics.items() if type(key) == PetriNet.Transition}
+
+#+END_SRC
+
+
+**** debugging stuff
+#print(transition_dict)
+
+
+#print(transition_dict)
+#place_dict = {str(key):value["performance"] for key, value in element_statistics.items() if type(key) == PetriNet.Place}
+##print(transition_dict)
+#place_dict_counts = {str(key):value["count"] for key, value in element_statistics.items() if type(key) == PetriNet.Place}
+##print(transition_dict)
+
+#arc_dict = {str(key):value["performance"] for key, value in element_statistics.items() if type(key) == PetriNet.Arc}
+#count_fiveples = [((pl1,arc1,trans,"N({})".format(trans),arc2,pl2),
+#place_dict_counts[pl1],
+#arc_dict_counts[arc1],
+#transition_dict_counts[trans],len(transition_dict[trans]),
+#arc_dict_counts[arc2],
+#place_dict_counts[pl2])
+#for pl1,arc1,trans,arc2,pl2 in transition_fiveples]
+#
+#whats_going_on = [count_fiveples[j] for j in range(len(count_fiveples)) if "p_21" in count_fiveples[j][0]]
+here is a bunch of code that didn't work.
+**** old transition dataframe
+#+name:pm4py4test-fitness_df_old
+#+BEGIN_SRC jupyter-python :session final  :display plain
+#pd.DataFrame.from_dict(transition_dict,orient="index"). works with {key:(x,y,z)} dicts
+
+transitiondf = pd.DataFrame.from_dict(transition_dict,orient="index").transpose().unstack(level=1).reorder_levels([1,0]).reset_index()
+transitiondf.drop(columns="level_0",inplace=True)
+#i would use orient=column here but this way it fills the empty times with NaNs.
+transitiondf.columns=["transition","time","weight"]
+transitiondf["transition"] = transitiondf["transition"].astype("category",inplace=True)
+#replace all the nans in a groups with the mean of that group.
+transitiondf["time"] = transitiondf.groupby("transition")["time"].transform(lambda ser: ser.fillna(ser.mean()))
+#removes nas left - ie. the transitions that are only an empty list.
+transitiondf["time"].fillna(0,inplace=True)
+
+isbad = transitiondf.groupby("transition")["time"].max()<0.001
+transitiondf = transitiondf.join(isbad,on="transition",rsuffix="isbad")
+transitiondfgt0 = transitiondf[transitiondf["timeisbad"]==False]
+#removes transitions where the transition time never goes above 0.
+#cleans up the graphs quite a bit.
+#transitiondfgt0["transition"].cat.remove_unused_categories(inplace=True)
+print(transitiondfgt0.loc[transitiondfgt0["transition"]=="d",:].head())
+print(transitiondfgt0["transition"].cat.categories)
+#okay given we're no longer working within the tidy framework, this is wheree we go from here.
+#we just work with rawdf and the weights and fit from there.
+#needs some pandas magic to be nice but here we are.
+
+#+END_SRC
+
+#+RESULTS: pm4py4test-fitness_df
+:RESULTS:
+# [goto error]
+#+BEGIN_EXAMPLE
+
+ValueErrorTraceback (most recent call last)
+<ipython-input-16-547ba30fc075> in <module>
+      2 transitiondf.drop(columns="level_0",inplace=True)
+      3 #i would use orient=column here but this way it fills the empty times with NaNs.
+----> 4 transitiondf.columns=["transition","time","weight"]
+      5 transitiondf["transition"] = transitiondf["transition"].astype("category",inplace=True)
+      6 #replace all the nans in a groups with the mean of that group.
+
+~/anaconda3/lib/python3.7/site-packages/pandas/core/generic.py in __setattr__(self, name, value)
+   5078         try:
+   5079             object.__getattribute__(self, name)
+-> 5080             return object.__setattr__(self, name, value)
+   5081         except AttributeError:
+   5082             pass
+
+pandas/_libs/properties.pyx in pandas._libs.properties.AxisProperty.__set__()
+
+~/anaconda3/lib/python3.7/site-packages/pandas/core/generic.py in _set_axis(self, axis, labels)
+    636 
+    637     def _set_axis(self, axis, labels):
+--> 638         self._data.set_axis(axis, labels)
+    639         self._clear_item_cache()
+    640 
+
+~/anaconda3/lib/python3.7/site-packages/pandas/core/internals/managers.py in set_axis(self, axis, new_labels)
+    153             raise ValueError(
+    154                 'Length mismatch: Expected axis has {old} elements, new '
+--> 155                 'values have {new} elements'.format(old=old_len, new=new_len))
+    156 
+    157         self.axes[axis] = new_labels
+
+ValueError: Length mismatch: Expected axis has 2 elements, new values have 3 elements
+#+END_EXAMPLE
+:END:
+
+*** transition dataframe
+ #+name:pm4pytest-transition-dataframe2
+ #+BEGIN_SRC jupyter-python :session final :exports both :display plain
+percentile_map = lambda arr:[st.percentileofscore(arr, x, 'weak')/100 for x in arr]
+
+def linspace_from_range(arr,n=100):
+    start,finish = np.sort(arr)[[0,-1]]
+    return(np.linspace(start,finish,n))
+
+
+
+#turns transition_dict above into a dataframe for further data munging
+transitiondf = pd.DataFrame.from_dict(transition_dict,orient="index")
+#replace pesky empty lists in transition times with more numerically tractable [0.0]s.
+transitiondf[0] = transitiondf[0].apply(lambda x : [0.0] if x == [] else x )
+#turn each list into a numpy array
+transitiondf["time"] = transitiondf[0].apply(lambda x:np.array(x))
+transitiondf["mins"] = transitiondf[0].apply(np.min)
+transitiondf["maxs"] = transitiondf[0].apply(np.max)
+time_max = transitiondf["maxs"].values.max()*10 # factor of 10 makes the logtime scale work nicer
+#if theres only one entry in the array, or if all the values are 0.0 in the array
+#we declare it bad. this means we assign a random variable to it rather than fitting one to data.
+#contition to see if all the values are 0
+#note: if all the values are (for example, 3.1415), it will also flag that as bad.
+#that shouldnt happen anyway, but theoretically this code would call it bad.
+allzero_condition = transitiondf["time"].apply(lambda x: np.isclose(a=x[0],b=x).all())
+#if the numpy array in transitiondf["time"] is too short to fit an exponential dist to, call it bad
+tooshort_condition = transitiondf["time"].apply(len)<2
+#form a boolean series out of the conditions
+transitiondf["isbad"] = allzero_condition | tooshort_condition
+#okay the weighted time allows us to account for the frequencies of different variants in the
+#petri net
+#the below block of code is wrong! do not do this. it violates the memorylessness property of the markov chain
+#and results in a broken model 
+#(NOTE THAT IS WRONG)note: by adding a constant term to this, we can account for distributions with non-zero modes  
+#def weight_transform(timecolumn,mincolumn,weightcolumn,df=transitiondf,reverse=False):
+#    if reverse == False:
+#        name = "weighted" + timecolumn
+#        df[name] = (df[timecolumn] - df[mincolumn])/df[weightcolumn]
+#        return(df)
+#
+#    else:
+#        name = "unweighted" + timecolumn
+#        df[name] = (df[timecolumn] + df[mincolumn])*df[weightcolumn]
+#        return(df)
+#transitiondf["weighted_time"] = transitiondf["time"]-transitiondf["mins"]
+transitiondf["weighted_time"] = transitiondf["time"]#debug version, without mins
+transitiondf["weighted_time"].apply(lambda times:times.sort())
+transitiondf["fit_cdf_empirical"] = transitiondf["weighted_time"].apply(percentile_map)
+
+#of the transitions we know are good, fit a scale parameter of the exponential dist to it
+#note: to enforoce memorylessness, the location parameter is forced at 0.
+#this butchers the fit to be honest, but without it, the model is invalid
+#if theres improvement to be had its here - how do you form the transition system with non-zero modes? i think theres a clever thing to be done in terms of a constant term added to the differential equation but i don't know right now.
+#explain the weighting scheme!!!
+
+transitiondf.loc[transitiondf["isbad"]==True,"scale"]= transitiondf.loc[transitiondf["isbad"]==True,["weighted_time",1]].apply(lambda row: 0.0001,axis=1)
+
+transitiondf.loc[transitiondf["isbad"]==False,"scale"]= transitiondf.loc[transitiondf["isbad"]==False,["weighted_time",1]].apply(lambda row:st.expon.fit(row["weighted_time"],floc=0.0)[1],axis=1)#groups["neightbours_median"] = [get_medians_of_neighbours(t) for t in transitions.keys()]
+
+#if theres nothing to fit an exponential to, fit a quickly transitioning exponential decay.
+
+#applying the weights here. scale is still the means.
+#added a constant 0.00001 in the edge case that a transition never played in the token replay
+#resulting in transitiondf[1] = 0 
+transitiondf["lambda"]=1.001/transitiondf["scale"]
+
+
+#params_hidden_neigh = groups.loc[groups["isbad"]==True & groups["neighbours"]]
+transitiondf["lambda_se"] = transitiondf[["lambda","time"]].apply(lambda row:row[0]/(np.sqrt(len(row[1]))),axis=1)
+transitiondf["lambda+se"] = transitiondf["lambda"] + 2*transitiondf["lambda_se"] #note: approximating t distribution factor as 2 here.
+transitiondf["lambda-se"] = transitiondf["lambda"] - 2*transitiondf["lambda_se"] 
+
+
+transitiondf["p_lambda==0"] = transitiondf["weighted_time"].apply(st.ttest_1samp,popmean=0).apply(lambda x:x[1])
+
+
+transitiondf["rv_objects"] = transitiondf["lambda"].apply(lambda l:st.expon(loc=0,scale=1/l))
+transitiondf["rv_objects+"] = transitiondf["lambda+se"].apply(lambda l:st.expon(loc=0,scale=1/l))
+try:
+    transitiondf["rv_objects-"] = transitiondf["lambda-se"].apply(lambda l:st.expon(loc=0,scale=1/l))
+except ZeroDivisionError:
+    print("caught a near division by zero in the lower bound of lambda, assigning the lower bound to 1/epsilon")
+    transitiondf["rv_objects-"] = transitiondf["lambda-se"].apply(lambda l:st.expon(loc=0,scale=10000000))
+
+
+#remember, the survival time is the probability that a random sample time is greater than a given sample time. 
+transitiondf["fit_pdf"] = transitiondf["rv_objects"].apply(lambda rv:rv.pdf)
+transitiondf["fit_cdf"] = transitiondf["rv_objects"].apply(lambda rv:rv.cdf)
+transitiondf["fit_cdf+"] = transitiondf["rv_objects+"].apply(lambda rv:rv.cdf)
+transitiondf["fit_cdf-"] = transitiondf["rv_objects-"].apply(lambda rv:rv.cdf)
+
+transitiondf["fit_cdf_times"] = transitiondf[["weighted_time","fit_cdf"]].apply(lambda row:row[1](row[0]),axis=1)
+#transitiondf["fit_cdf+times"] = transitiondf[["weighted_time","lambda+se"]].apply(lambda row:st.expon.cdf(row[0],scale=1/row[1],loc=0),axis=1)
+#transitiondf["fit_cdf-times"] = transitiondf[["weighted_time","lambda-se"]].apply(lambda row:st.expon.cdf(row[0],scale=1/row[1],loc=0),axis=1)
+
+
+
+transitiondf.loc[transitiondf["isbad"]==False,"fit_probabilities"] = transitiondf[["weighted_time","fit_pdf"]].apply(lambda row:row[1](row[0]),axis=1)
+transitiondf.loc[transitiondf["isbad"]==True,"fit_probabilities"] = transitiondf[["weighted_time","fit_pdf"]].apply(lambda row:row[1](row[0]),axis=1)
+transitiondf["cdf_residuals"] = transitiondf["fit_cdf_empirical"]-transitiondf["fit_cdf_times"]
+transitiondf["fit_variance"] = transitiondf["cdf_residuals"].apply(np.var,ddof=1)
+transitiondf["total_variance"] = transitiondf["fit_cdf_empirical"].apply(np.var)
+transitiondf["rsquared"] = 1 - transitiondf["fit_variance"]-transitiondf["total_variance"]
+transitiondf["anderson-darling-objects"] = transitiondf["fit_cdf_empirical"].apply(st.anderson,dist="expon")
+transitiondf["anderson-darling-15pc-H0"] =  transitiondf["anderson-darling-objects"].apply(lambda result:result[0]<result[1][0])
+transitiondf["anderson-darling-15pc-H0"] = transitiondf["anderson-darling-15pc-H0"]  & ~transitiondf["isbad"]
+
+
+#transitiondf["fit_cdf_times+err"] = transitiondf[["weighted_time","fit_cdf","lambda","lambda_se"]].apply(lambda row:row[1](row[0],scale=(1/(row[2]))),axis=1)
+
+
+
+
+#transitiondf.loc[transitiondf["isbad"]==True,"fit_times"] = transitiondf["rv_objects"].apply(lambda bad: bad.rvs(size=100))
+
+transitiondf.head()
+ #+END_SRC
+
+*** testing the fit
+#+name:pm4py4test-transitionfits-plot
+     #+BEGIN_SRC jupyter-python :session final :exports both :file panel.png
+import matplotlib.pyplot as plt
+
+figuredimensions = int(np.ceil(np.sqrt(transitiondf.shape[0])))
+fig, all_ax = plt.subplots(figuredimensions, figuredimensions,figsize=(20,16),dpi=150,constrained_layout=True,sharex=True)
+fig.patch.set_facecolor('white')
+i = 0
+hist = []
+ploot = []
+for t,row in transitiondf.iterrows():
+    ax = all_ax.flatten()[i]
+    rv = row["fit_probabilities"]
+    x = row["weighted_time"]
+    #x.sort()
+
+    #ax.plot(x,rv.sf(x),'r-', lw=5, alpha=0.6, label='expon pdf')
+    hist = ax.hist(x, density=True,bins=np.logspace(1,np.ceil(np.log10(time_max)),10),color="red",histtype='stepfilled', alpha=0.6,label="histogram")
+    #ploot.append(ax.plot(x, rv, 'k-',lw=1, label='frozen pdf'))
+    ax.axvline(np.mean(x), ls='--', color='black',label="mean")
+    ax.set_xscale("log")
+    ax.axvline(0.01, ls=':', color='black',label="0")
+    ax.set(xlim=[1,time_max],xlabel="time",ylabel="density",title=t)
+    ax.legend(loc="lower right", frameon=False)
+
+    i +=1
+fig.suptitle("Transition time histograms")   
+#plt.show()
+    #ax.legend(loc='best', frameon=False)
+plt.savefig(here+idstring+"panel.png")
+     #+END_SRC
+
+#+name:pm4py4test-transitionfits-plot2
+     #+BEGIN_SRC jupyter-python :session final :exports both :file panel_cdfs.png
+import matplotlib.pyplot as plt
+
+good_transitions = transitiondf.loc[transitiondf["isbad"]==False,:]
+figuredimensions = int(np.ceil(np.sqrt(good_transitions.shape[0])))
+fig, all_ax = plt.subplots(figuredimensions, figuredimensions,figsize=(20,16),dpi=150,constrained_layout=True,sharey=True)
+fig.patch.set_facecolor('white')
+i = 0
+hist = []
+ploot = []
+
+
+for t,row in good_transitions.iterrows():
+    if row["isbad"]==True:
+        continue
+    ax = all_ax.flatten()[i]
+
+
+    rv2 = row["fit_cdf_empirical"]  
+    rv1 = row["fit_cdf"]
+    x = row["weighted_time"]
+    x_supp = linspace_from_range(x)
+    rv1up = row["fit_cdf+"]
+    rv1lo = row["fit_cdf-"]
+    ax.plot(x_supp,rv1(x_supp),color="blue", lw=2, alpha=0.6, label='Fit exponential CDF times')
+    ax.plot(x,rv2,marker="x",alpha=1,color="green",label="Empirical CDF")
+    ax.fill_between(x_supp,rv1up(x_supp),rv1lo(x_supp),color="blue",alpha=0.5,label="95% confidence interval") 
+    textstr =\
+r'$R^2 = {}$'.format(row["rsquared"])+\
+"\n"+\
+r'Anderson-Darling $H_0$ {}'.format(acceptreject(row["anderson-darling-15pc-H0"])) 
+    # these are matplotlib.patch.Patch properties
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+
+    # place a text box in upper left in axes coords
+    ax.text(0, 0.95, textstr, transform=ax.transAxes, fontsize=7,
+            verticalalignment='bottom', bbox=props,wrap=True)
+#    ax.set_xscale("log")
+    ax.set(xlabel="Time",ylabel="CDF",title=t)
+    ax.legend(loc="lower right", frameon=False)
+    i +=1
+
+fig.suptitle("Empirical CDFs vs. Fit CDFs of transition times")
+#plt.show()
+plt.savefig(here+idstring+"panel_cdfs.png")
+     #+END_SRC
+
+
+
+*** reachability
+ #+name:pm4py4test-reachability
+ #+BEGIN_SRC jupyter-python :session final  :file tsbigdataframe
+reachab_graph = construct_reachability_graph(net, initial_marking)
+from pm4py.visualization.transition_system import factory as ts_vis_factory
+print(reachab_graph.states)
+print(reachab_graph.transitions)
+viz = ts_vis_factory.apply(reachab_graph, parameters={"show_labels": True, "show_names": True})
+viz.format = "png"
+viz.graph_attr["bgcolor"] = "white"
+#ts_vis_factory.render(viz)
+viz.render(here+idstring + "ts_unlabeled")
+     #+END_SRC
+
+**** transition disambiguation
+It can happen in the transition system that with a number of states having a number of tokens that some transitions occur more than once.
+This is not guaranteed by soundness as I once thought!
+Not necessary using transitiondf2 because i assign transition rates using the transition labels which dont need to be unique.
+
+
+*** fitting to a continuous time markov chain
+ #+name:pm4py4test-fitting-rates
+ #+BEGIN_SRC jupyter-python :session final 
+import scipy.linalg as la
+%matplotlib inline
+import statistics
+#yeah dont forget: the aim is to get all the states without sink and source.
+states = [str(s) for s in reachab_graph.states]
+states = sorted(states)
+states.remove("sink1")
+states.remove("source1")
+# convenience dictionaries from converting to and from states to indices of the transition matrix
+mintimes = transitiondf["mins"].to_dict()
+
+number2state = ["source1"] + states + ["sink1"] #makes a list to map states onto indices of a matrix
+state2number = {number2state[i]:i for i in range(len(number2state))} # inverse of that guy above
+#add min(mintimes over a transition) to each state
+
+transitions_obj = {str(t):t for t in reachab_graph.transitions} #convenience dict to allow access to the reachability graphs transition object
+states_obj = {str(s):s for s in reachab_graph.states} #convenience dict to allow access to the reachability graphs transition object
+
+
+transitions = {t:(str(t.from_state),str(t.to_state)) for t in reachab_graph.transitions} #map from transition objects to their sources and destinations as labels
+
+transitions_n = {t:(state2number[str(t.from_state)],state2number[str(t.to_state)]) for t in reachab_graph.transitions} #from transition objects to their sources and destinations as *indices*
+transitions_n_str = {t_obj.name:coord for t_obj,coord in transitions_n.items()}
+
+inverted_transitions_n = {v:k for k,v in transitions_n.items()} #inverse of above
+
+
+transition_matrix = np.zeros([len(number2state),len(number2state)])
+minimum_time_consts = np.zeros([len(number2state),len(number2state)])
+#where the work happens. theres a bit of sleight of hand here, so i'll explain it
+#inverted_transitions_n is a dict of ((i,j),"transition_label")
+for coords,transition in inverted_transitions_n.items(): #for each set of coordinates with a transition label
+# we take the label in the transition dataframe, look up it's value of lambda
+# and *add* lambda of that transition to that coordinate.
+# the sleight of hand is in the += - why can we do that?
+# i'm using the fact that the minimum of a series of exponential rvs with lambdas 
+# is exponentially distributed with the sum of all those lambdas. 
+    transition_matrix[coords] += transitiondf.loc[transition.name,1]*transitiondf.loc[transition.name,"lambda"]
+    minimum_time_consts[coords] = np.mean([minimum_time_consts[coords],mintimes[transition.name]]) #hacky and wild approximation, will fail awfully in or splits in a petri net
+#with very different time constants but it'll do for now.
+#quick warning for testing sake: np.fill_diagonal returns none. it works inplace!
+np.fill_diagonal(transition_matrix,-transition_matrix.sum(axis=1))
+#as a test, this should be close to zero. the sums of all the rows in a stochastic rate matrix = 0
+print(transition_matrix.sum(axis=1))
+minimum_time_consts_states = minimum_time_consts.sum(axis=1)
+embedded_matrix = np.full_like(transition_matrix,0)
+#the embedded markov chain (aka. the jump chain) is a discretisation of the continuous time markov chain.
+#which tells you which state you will likely end up in from this state
+for (i,j),_ in np.ndenumerate(transition_matrix):
+#ndenumerate is a lovely little iterator <3. great for when you have matrices defined in terms of their components.
+    #print(i,j,aij)
+    if i == j:
+        pass;
+    else:
+        if transition_matrix[i,i] != 0:
+            embedded_matrix[i,j] = -transition_matrix[i,j]/transition_matrix[i,i]
+
+np.fill_diagonal(embedded_matrix,1-embedded_matrix.sum(axis=1))
+#fundamental_matrix = la.inv((np.eye(len(embedded_matrix)-1)-embedded_matrix[:len(embedded_matrix)-1,:len(embedded_matrix)-1]))
+#these row sums should be 1 each, which means by definition, the diagonal elements e[i,i] = 1-(sum_j(t[i,j]))        
+print(embedded_matrix.sum(axis=1))
+#print(embedded_matrix[0,:])
+transition_matrix_density = sum(sum(transition_matrix!=0))/(transition_matrix.shape[0]**2)
+
+ #+END_SRC
+
+
+
+
+
+
+ #+NAME: pm4py4test-transient-analysis
+ #+BEGIN_SRC jupyter-python :session final 
+#whats the probability it'll hit state A from state 1?
+#expected hitting time is k(i,a) where a is the destination state, i is the current state
+# = sum over j != i in state space \ a embedded_matrix[i,j]
+# see https://ece.uwaterloo.ca/~mazum/ECE605_2012/Notes/MarkovChains_CTMC.pdf
+
+import numpy.ma as ma
+
+#okay how do we do this for all times?
+#and is it worth doing? or just simply worth doing for specific states?
+
+square = lambda nparr: nparr.reshape(np.repeat(int((nparr.shape[0])**(0.5)),2))
+#convenience function to just normalise a vector real quick
+#not used in the end
+normalise = lambda nparr: nparr/nparr.sum()
+
+
+def mask_state(P,state):
+    #convenience fn: returns the matrix P without row and column "state"
+    #st an nxn P will have P.shape = (n-1,n-1)
+    Pm = ma.masked_array(P,np.zeros_like(P))
+    Pm[state,state] = ma.masked
+    Pm = ma.mask_rowcols(Pm)
+    return(Pm)
+
+
+
+
+start_state = 0 #the start of the wf net
+end_state = len(transition_matrix)-1 #absorbing by definition 
+destination_state = [] #states in here are effectively treated as absorbing for the sake of the calculation.
+
+#things ive learned today
+#1: numpy masks butcher dimensions of ndarrays
+#2: .reshape() accepts -1 as a wildcard value
+#convenience function to just put a 1d numpy ex-matrix back into a square matrix again
+#not used in the end but useful if you're playing with masked numpy arrays which are probably involved in
+#the nice, clean, robust version of this code
+tc = copy.deepcopy(minimum_time_consts)
+em = copy.deepcopy(embedded_matrix)
+tm = copy.deepcopy(transition_matrix)
+
+
+
+la
+#permutation = copy.deepcopy(number2state)
+#working copy of the transition_matrix
+#swap destination state with state n-1
+#for i,dest in enumerate(destination_state):
+#    j = end_state-(i+1)
+#    tm[dest,:],tm[j,:] = tm[j,:],tm[dest,:] 
+#    em[dest,:],em[j,:] = em[j,:],em[dest,:]
+#    tc[dest,:],tc[j,:] = tc[j,:],tc[dest,:] 
+#    permutation[dest],permutation[j]=permutation[j],permutation[dest]
+#    del permutation[j] 
+##for loop ends here, take the highest j goes in the next assignments
+##pep8 don't @ me
+#del permutation[-1]
+#rt = tm[:j,j:]
+#qt = tm[:j,:j]
+#tct = tc[:j]
+#expected_hitting_times = la.solve(-qt,np.ones(len(qt))) #theres a nice way of pathwise adding the additional times, and it smells like a matrix operation
+#but i cant figure out how
+
+#results = pd.DataFrame(expected_hitting_times,index=permutation)
+
+#em = np.insert(em,values=np.ones(len(em)),obj=0,axis=0) 
+#rm = em[:j,j:]
+#qm = em[:j,:j]
+#I FOUND THIS SMOKING GUN
+#np.linalg.matrix_rank(tm_m) # = 18
+#WHICH MEANS THERE ARE LINEAR COMBINATIONS MY GODDAMN STOCHASTIC MATRIX
+
+#edit: 24/7/19 i found out what was going on.
+#there was another absorbing state in my transition graph not in the petri net?!
+#weird bug, absolutely crippling
+#this works now.
+
+#this is meant to be my attempt at finding the solution to the total transition probabilities to collections of states
+#it works but qm is a singular matrix in my test case? further testing needed
+
+#and this give the mean hitting time of sink1 from every state! nice!
+#namely the final absorbing state and a specified destination state.
+
+#np.array_str(sol2,max_line_width=100000)
+ #+END_SRC
+
+ #+NAME: pm4py4test-transient-analysis-v2
+ #+BEGIN_SRC jupyter-python :session final 
+start_state = 0
+timepoints = 100 + 1 #for 0 at the start
+
+approxn_exp = lambda mat,t:np.real(la.eig(mat)[1]@np.diag(np.exp(la.eig(mat)[0]*t))@la.inv(la.eig(mat)[1]))
+
+
+stop_state = len(transition_matrix)-1
+
+#hitting_time_matrix = np.zeros_like(transition_matrix)
+#
+#for k in np.arange(0,stop_state):
+#    absorbing_index = [stop_state,k]
+#    state_boolean = np.ones(len(transition_matrix),dtype=bool)
+#    state_boolean[absorbing_index] = False
+#    target_rows = np.eye(stop_state+1)[absorbing_index,:]
+#    q=copy.deepcopy(transition_matrix)
+#    q[absorbing_index,:] = target_rows
+#
+##transition_matrix[state_boolean,:][:,state_boolean] #doing [state_boolean,state_boolean] collapses it into a vector. dunno why. i want a square matrix with two rows and columns deleted.
+#    r = state_boolean.astype(int)
+#    solution = la.solve(-q,r)
+#    #line = np.append(solution,0)
+#    #line = np.insert(line,absorbing_index[1],0)
+#    #each row here is the time until absorbtion - where you can be absorbed at either state k or stop_state
+#    hitting_time_matrix[k,:] = solution
+
+transition_matrix2 = copy.deepcopy(transition_matrix)
+#    
+finalstate = np.ones(len(transition_matrix))
+finalstate[len(transition_matrix)-1] = 0       
+transition_matrix2[len(transition_matrix)-1,:] = np.abs(finalstate-1)
+start_2_finish = la.solve(-transition_matrix2,finalstate)
+print(start_2_finish)
+#transition_matrix[state_boolean,:][:,state_boolean] #doing [state_boolean,state_boolean] collapses it into a vector. dunno why. i want a square matrix with two rows and columns deleted.
+
+start_state = 0 #the start of the wf net
+start_state_space = np.zeros(len(transition_matrix))
+start_state_space[start_state] = 1 
+times = np.logspace(0,np.ceil(np.log10(time_max)),timepoints-1)
+times = np.insert(times,0,0)
+tm_at_times = transition_matrix[:,:,np.newaxis]*times
+exp_tm_t = np.zeros((len(transition_matrix),len(transition_matrix),timepoints))
+eigenexp_tm_t = np.zeros((len(transition_matrix),len(transition_matrix),timepoints))
+
+p_t = np.zeros((timepoints,len(transition_matrix)))
+for i,time in enumerate(times):
+    try:
+        la.expm_cond(transition_matrix)
+        exp_tm_t[:,:,i] = la.expm(tm_at_times.astype("float128")[:,:,i])
+        p_t[i,:] = start_state_space@exp_tm_t[:,:,i]
+
+
+
+    except ValueError:
+        #print("caught underflow, resorting to eigen-approximation")
+        exp_tm_t[:,:,i] = approxn_exp(tm_at_times[:,:,i],1)
+        p_t[i,:] = start_state_space@exp_tm_t[:,:,i]
+#using float128s to stop underflows
+ #+END_SRC
+
+#+name:pm4py4test-transience-variance
+#+BEGIN_SRC jupyter-python :session final :exports both :display plain
+lhs = np.eye(len(embedded_matrix))-embedded_matrix
+lhs[-1,:] = np.eye(len(embedded_matrix))[-1,:]
+rhs =  np.sum(np.array([(1+start_2_finish-i)**2 for i in start_2_finish]),axis=1)
+variances = la.solve(lhs,rhs)
+print(np.sqrt(variances))
+#+END_SRC
+
+
+
+
+*** getting variants from alignments
+#+name:pm4py4test-variants-df
+     #+BEGIN_SRC jupyter-python :session final :exports both :display plain
+def add_variants_to_alignment(alignment_list,raw=False):
+    alignment2 = copy.deepcopy(alignment_list)
+    tau_prefixes = ["tau","init","loop","skip"]
+    
+    for trace in alignment2:
+        trace["labels"] = []
+        trace["raw_labels"] = []
+        for t_object in trace["activated_transitions"]:
+            label = t_object.name
+            if(raw==True):
+                trace["raw_labels"].append(label)
+            goodness = True
+            for p in tau_prefixes:
+                goodness = goodness and p not in label
+            if goodness == True:
+                trace["labels"].append(label)
+        variantstring = ",".join(trace["labels"])
+        rawvariantstring = ",".join(trace["raw_labels"])
+        trace["variant"] = variantstring
+        if (raw == True):
+            trace["raw_variant"] = rawvariantstring
+    return(alignment2)
+            
+
+
+aligned_traces_v = add_variants_to_alignment(aligned_traces,raw=True)
+alignment_df = pd.DataFrame.from_records(aligned_traces_v)
+alignment_df = alignment_df.\
+drop(columns=["activated_transitions","enabled_transitions_in_marking",\
+"reached_marking","transitions_with_problems","raw_labels","labels"]).\
+set_index("variant").drop_duplicates()
+variants_count_df.columns = ["variant","count"]
+#dunno why this doesnt work with ndarrays.
+casestats2 = casestats.reset_index().groupby("variant").agg(lambda x: list(x))
+variants_df = variants_count_df.set_index("variant").join([alignment_df,casestats2])
+
+def variant_in_transition_matrix(variantstring,variant_reference=transitiondf["scale"],variant_error_reference=transitiondf["lambda_se"],return_cumsum = False,path_reference=[]):
+    #variant_reference[transition_as_str]["scale"] = mean time
+    #path_reference[transition_as_str] = coordinate in transition matrix
+
+    activities = variantstring.split(",")
+    meantimes = np.zeros(len(activities))
+    error = np.zeros(len(activities))
+    matrix_path = []
+    for i,a in enumerate(activities):
+        meantimes[i] = variant_reference[a]
+        error[i] = variant_error_reference[a]
+        cumul_meantimes = np.cumsum(meantimes)
+        cumul_error = np.cumsum(error)
+        if path_reference != []:
+            matrix_path.append(path_reference[a])
+    #if return_cumsum == True:
+    #    return(cumul_meantimes)
+    #else:
+    #    return(cumul_meantimes[-1])
+    if path_reference !=[] and return_cumsum:
+        return(cumul_meantimes,cumul_error,np.array(matrix_path))
+    elif return_cumsum:
+        return((cumul_meantimes,cumul_error))
+    else:
+        return((cumul_meantimes[-1],cumul_error[-1]))
+       
+#variants_df["meantimes"] = variants_df.apply(lambda x:mean_time_of_variant_from_acts(x.name,variant_reference = transitiondf["scale"]))
+all_paths =\
+{variant:\
+variant_in_transition_matrix(\
+alignment_df.loc[variant,"raw_variant"],\
+path_reference=transitions_n_str,\
+variant_reference = 1/transitiondf["lambda"],\
+variant_error_reference = 1/transitiondf["lambda_se"],\
+return_cumsum = True\
+) for variant in alignment_df.index}
+
+
+expected_final_hitting_time = start_2_finish[0]  
+variants_df = variants_df.join(pd.DataFrame.from_dict(all_paths,orient="index",columns = ["c_mean","c_se","statepath"]))
+variants_df["finish_time"] = variants_df["c_mean"].apply(lambda x:x[-1])
+variants_df["finish_error"] = variants_df["c_se"].apply(lambda x:x[-1])
+variants_df["meancaseduration"] = variants_df["caseDuration"].apply(np.mean)
+variants_df["c_pr"] = variants_df["statepath"].apply(lambda path: embedded_matrix[path.T.tolist()].cumprod())
+variants_df["pr"] = variants_df["c_pr"].apply(lambda l:l[-1])
+variants_df["t-test"] = variants_df[["finish_time","caseDuration"]].apply(lambda row:st.ttest_1samp(row[1],row[0])[1],axis=1) 
+print(variants_df.head())
+
+
+
+     #+END_SRC
+
+
+*** variant histograms
+#+name:pm4py4test-plot-variants
+     #+BEGIN_SRC jupyter-python :session final :exports both :file variant_hist.png
+topvariants=variants_df.head(9)
+figuredimensions = 3
+fig, all_ax = plt.subplots(figuredimensions, figuredimensions,figsize=(20,16),dpi=150,constrained_layout=True)
+fig.patch.set_facecolor('white')
+i = 0
+hist = []
+ploot = []
+for t,row in topvariants.iterrows():
+    ax = all_ax.flatten()[i]
+    x = row["caseDuration"]
+    sum_si = row["finish_time"]
+    se_si = row["finish_error"]
+    bar_x = np.mean(x)
+    std_x = np.sqrt(np.var(x,ddof=1))
+    #ax.plot(x,rv.sf(x),'r-', lw=5, alpha=0.6, label='expon pdf')
+    hist = ax.hist(x, density=True,bins=50,color="purple",histtype='stepfilled',label="histogram")
+    #ploot.append(ax.plot(x, rv, 'k-',lw=1, label='frozen pdf'))
+   
+
+    ax.axvline(bar_x, ls='--', color='blue',label="Variant mean time ($\lambda_i$)")   
+    ax.axvline(sum_si,color="green",label="Sum of mean activity times")
+#    ax.axvspan(sum_si - 1.96*se_si ,sum_si + 1.96*se_si,color="green",alpha=0.1,label="mean sum of activities, 95% confidence region")
+    textstr = r"t-test $H_0$: Mean variant time = sum of mean activity times {}".format(acceptreject(row["t-test"]>0.05)) 
+    # these are matplotlib.patch.Patch properties
+    props = dict(boxstyle='round', facecolor='wheat', alpha=0.5)
+
+    # place a text box in upper left in axes coords
+    ax.text(0.3, 0.2, textstr, transform=ax.transAxes, fontsize=9,
+            verticalalignment='bottom', bbox=props,wrap=True)
+    ax.axvline(start_2_finish[0], ls=':', color='red',label="Mean Hitting time for (all variants)")
+
+    ax.set(xlabel="time",ylabel="density",title=t,xlim=[0,np.max(x)])
+    i +=1
+    ax.legend(loc='best', frameon=False)
+
+#plt.show()
+    
+plt.savefig(here+idstring+"panel_variant_hist.png")
+
+     #+END_SRC
+
+*** visualise transition matrix
+
+
+#+name:pm4py4test-transition_diagrams_timeevolution
+#+BEGIN_SRC jupyter-python :session final :file time-evolution.png
+figuredimensions = 4
+timeindexsample = np.floor(np.linspace(0,len(times),figuredimensions**2,endpoint=False)).astype(int)
+fig, all_ax = plt.subplots(figuredimensions, figuredimensions,figsize=(16,16),dpi=200,constrained_layout=True)
+fig.patch.set_facecolor('white')
+
+p_names_t = [{states_obj[number2state[i]]:p_t[t,i] for i in range(len(transition_matrix))} for t in range(len(times))]
+
+colours_prob = mpl.cm.get_cmap('cool')
+cmap_prob = lambda x:mpl.colors.to_hex(colours_prob(x))
+cmap_dict_prob = [{s: cmap_prob(p_names_t[t][s]) for s in reachab_graph.states} for t in range(len(times))]
+colours_time = mpl.cm.get_cmap("rainbow")
+cmap_time = lambda x:mpl.colors.to_hex(colours_time(x))
+cmap_dict_time = {s: cmap_time(start_2_finish[state2number[s.label]]/max(start_2_finish)) for s in reachab_graph.states}
+t_names = {states_obj[number2state[i]]:start_2_finish[i] for i in range(len(transition_matrix))}
+#cmap_dict_prob = [{s:cmap(p_names_t[t][s]) for s in reachab_graph.states} for t in range(len(times))]
+
+vizzes = []
+for i,timeindex in enumerate(timeindexsample):
+    thisgraph = all_ax.ravel()[i]
+    tsnamestring = idstring +"time"+str(np.floor(times[timeindex]))+"ts"
+    vizzes.append(ts_vis_factory.apply(reachab_graph, parameters={"format": "png","show_names": p_names_t[timeindex],"fillcolors": cmap_dict_prob[timeindex]}))
+    print("tsnamestring=",tsnamestring)
+    vizzes[-1].format = "png"
+    vizzes[-1].graph_attr["bgcolor"] = "white"
+    #ts_vis_factory.render(viz)
+    vizzes[-1].render(here+tsnamestring)
+    thisgraph.set_title("Transition system,t={} s".format(times[timeindex]))
+    thisgraph.imshow(mpimg.imread(here+tsnamestring+".png"))
+    thisgraph.axis("off")
+    
+fig.suptitle("Time evolution of process through transition graph")
+plt.savefig(here+idstring+"time-evolution.png")
+
+     #+END_SRC
+
+     #+NAME: pm4py4test-transition_diagrams_timedistance
+     #+BEGIN_SRC jupyter-python :session final :file ./time-distance.png
+hitting_time_viz = ts_vis_factory.apply(reachab_graph, parameters={"format": "png","show_names":t_names,"fillcolors":cmap_dict_time})
+hitting_time_viz.format = "png"
+hitting_time_viz.graph_attr["bgcolor"] = "white"
+hitting_time_viz.render(here+idstring +"dist_ts")
+     #+END_SRC
+
+**** nice tables
+#+name:pm4py4test-variants-df-nice1
+#+BEGIN_SRC jupyter-python :session final :display org-table :results raw :pandoc t 
+transitiondf_nice = transitiondf.loc[transitiondf["isbad"]==False,[1,"mins","maxs","scale","lambda-se","lambda+se","rsquared","p_lambda==0","anderson-darling-15pc-H0"]]
+variants_df_nice = variants_df[["trace_fitness","pr","finish_time","finish_error","meancaseduration","t-test",]]
+transitiondf_nice.columns = \
+["Transition Frequency","Minimum time","Maximum time","Mean time","$\lambda-2 se(\lambda^2)$","$\lambda+2 se(\lambda^2)$","$R^2$","$p(\lambda)=0$","Passes Anderson-Darling test at 15pc significance"]
+variants_df_nice.columns = \
+["Fitness","Path Probability","Sum of mean act. times","se(Mean act. times)","Mean Case Duration","P(Mean act. times = Mean Case Duration)"]
+
+def nice(df):
+    if "trace_fitness" in df.columns:
+        df_nice = df[["count","trace_fitness","pr","finish_time","finish_error","meancaseduration","t-test",]]
+        df_nice.columns = \
+["Count","Fitness","Path Probability","Sum of mean act. times","se(Mean act. times)","Mean Case Duration","P(Mean act. times = Mean Case Duration)"]
+    elif "isbad" in df.columns:
+        df_nice = df.loc[df["isbad"]==False,[1,"mins","maxs","scale","lambda-se","lambda+se","rsquared","p_lambda==0","anderson-darling-15pc-H0"]]
+        df_nice.columns = \
+["Transition Frequency","Minimum time","Maximum time","Mean time","Transition rate lower bound","Transition rate upper bound","R^2","P(\lambda)=0","Passes Anderson-Darling test at 15pc significance"]
+    return(df_nice)
+       
+         
+#+END_SRC
+# [goto error]
+
+#+name:pm4py4test-variants-df-nice2
+#+BEGIN_SRC jupyter-python :session final :display org :results raw :pandoc t 
+printorgtable(transitiondf_nice)
+transitiondf.to_pickle(here+idstring+"transitiondf.pkl")
+#+END_SRC
+
+
+
+#+NAME: pm4py4test-variants-df-nice3
+#+BEGIN_SRC jupyter-python :session final :results raw :display org 
+printorgtable(variants_df_nice.head(20))
+variants_df.to_pickle(here+idstring+"variantdf.pkl")
+#+END_SRC
+
+
+ 
+
+** QUICKRUN
+**** default quickrun
+#+name:pm4py4test-quickrun
+#+BEGIN_SRC jupyter-python :session final :noweb yes :eval yes :tangle no :async no 
+
+
+<<pm4py4test-preamble>>
+#100pc-0df 
+#100pc-50df 
+#100pc-75df
+#
+#90pc-100df
+#
+#75pc-100df
+#
+#90pc-75df
+#
+#75pc-100df
+
+#<<unitekinnogyfinal-preamble-pm4py>>
+print("importing data")
+<<pm4py4test-set_cleaning_params(istring="receiptsFINAL",decreasingFactor=1,keep_percent=0.9)>>
+#<<pm4py4test-set_cleaning_params(istring="receiptsFINAL",decreasingFactor=1,keep_percent=0.9)>>
+<<pm4py4test-preamble-pm4py>>
+<<pm4py4test-import_consts>>
+<<pm4py4test-import_loadnclean>>
+#<<unitekinnogyfinal-data-import_consts>>
+#<<unitekinnogyfinal-data-import_loadnclean>>
+<<pm4py4test-repr-hack>>
+
+print("filtering")
+<<pm4py4test-variant-count>>
+<<pm4py4test-import_filter>>
+#<<pm4py4test-repr-hack>>
+print("fitting dfg and workflow net")
+<<pm4py4test-fit_dfg_pt>>
+print("playing token based replay")
+<<pm4py4test-fitness_alignment>>
+print("scraping petri net")
+<<pm4py4test-pn_scraping>>
+print("generating casestats")
+<<pm4py4test-casestats>>
+print("making transitiondf")
+<<pm4pytest-transition-dataframe2>>
+<<pm4py4test-petrimeasures_alignment>>
+
+
+#<<pm4py4test-fitness_df>>
+print("making reachability graph")
+<<pm4py4test-reachability>>
+print("making transition matrix")
+<<pm4py4test-fitting-rates>>
+print("performing transient analysis")
+<<pm4py4test-transient-analysis-v2>>
+print("generating variants df")
+<<pm4py4test-variants-df>>
+print("generating dfg and pn diagrams")
+<<pm4py4test-plot-all>>
+print("generating variant histograms")
+<<pm4py4test-plot-variants>>
+print("generating activity histograms")
+<<pm4py4test-transitionfits-plot>>
+print("generating activity cdfs")
+<<pm4py4test-transitionfits-plot2>>
+print("generating time evolution graphs")
+<<pm4py4test-transition_diagrams_timeevolution>>
+print("generating time-distance graph")
+<<pm4py4test-transition_diagrams_timedistance>>
+print("pretty-printing tables and saving to pkl")
+<<pm4py4test-variants-df-nice1>>
+<<pm4py4test-variants-df-nice2>>
+<<pm4py4test-variants-df-nice3>>
+
+#+END_SRC
+
+**** unitek quickrun
+#+name:unitekinnogyfinal-quickrun-loaddata
+#+BEGIN_SRC jupyter-python :session final :noweb yes :tangle yes :async no
+<<pm4py4test-preamble>>
+
+#<<unitekinnogyfinal-preamble-pm4py>>
+print("importing data")
+<<pm4py4test-set_cleaning_params(istring="innogy_final",decreasingFactor=0,keep_percent=0.5)>>
+<<pm4py4test-preamble-pm4py>>
+#<<pm4py4test-import_consts>>
+#<<pm4py4test-import_loadnclean>>
+<<unitekinnogyfinal-data-import_consts>>
+<<unitekinnogyfinal-data-import_loadnclean>>
+print("log of length ",len(log_prefilter)," ready to go")
+#+END_SRC
+
+#+NAME: unitekinnogyfinal-quickrun-analysedata
+#+BEGIN_SRC jupyter-python :session final :noweb yes :eval no :tangle yes :async no
+
+print("filtering")
+<<pm4py4test-variant-count>>
+<<pm4py4test-import_filter>>
+#<<pm4py4test-repr-hack>>
+print("fitting dfg and workflow net")
+<<pm4py4test-fit_dfg_pt>>
+print("playing token based replay")
+<<pm4py4test-fitness_alignment>>
+print("scraping petri net")
+<<pm4py4test-pn_scraping>>
+print("generating casestats")
+<<pm4py4test-casestats>>
+print("making transitiondf")
+<<pm4pytest-transition-dataframe2>>
+<<pm4py4test-petrimeasures_alignment>>
+#<<pm4py4test-fitness_df>>
+print("making reachability graph")
+<<pm4py4test-reachability>>
+print("making transition matrix")
+<<pm4py4test-fitting-rates>>
+print("performing transient analysis")
+<<pm4py4test-transient-analysis-v2>>
+print("generating variants df")
+<<pm4py4test-variants-df>>
+print("generating dfg and pn diagrams")
+<<pm4py4test-plot-all>>
+print("generating variant histograms")
+<<pm4py4test-plot-variants>>
+print("generating activity histograms")
+<<pm4py4test-transitionfits-plot>>
+print("generating activity cdfs")
+<<pm4py4test-transitionfits-plot2>>
+print("generating time evolution graphs")
+<<pm4py4test-transition_diagrams_timeevolution>>
+print("generating time-distance graph")
+<<pm4py4test-transition_diagrams_timedistance>>
+print("pretty-printing tables and saving to pkl")
+<<pm4py4test-variants-df-nice1>>
+<<pm4py4test-variants-df-nice2>>
+<<pm4py4test-variants-df-nice3>>
+<<pm4py4test-repr-hack>>
+#+END_SRC
+: importing data
+: innogy_final50pc_0df
+: /home/river/anaconda3/lib/python3.7/site-packages/numpy/lib/arraysetops.py:569: FutureWarning: elementwise comparison failed; returning scalar instead, but in the future will perform elementwise comparison
+:   mask |= (ar1 == a)
+:END:
+#+NAME: unitekinnogyfinal-quickrun-analysedata
+/bigdataframe60pcdfg-perf.png
+* Abstract 
+A common problem in process mining is that of finding out exactly how long a process
+should take by decomposing a process into a series of different activities. This work
+hypothesizes that the time it takes to complete a process is simply the sum of the
+times to complete the activities in that process. This hypothesis should hold in memoryless processes but does not hold without memorylessness.  
+Two datasets are used in this work
+- a dataset provided by =PM4PY= [[https://github.com/pm4py/pm4py-source][Github Link]]
+- a dataset provided kindly by Unitek BPI. 
+The latter is proprietary data used to evaluate the model on a real world computational processes. 
+Models are built as specified and fit on data, where it is shown using hypothesis tests and graphical methods to not be appropriate due to violations of the memorylessness property.
+* Introduction of project and background literature 
+
+** Literature review
+The majority of the literature used in this project exists on an axis with process mining and business process management work on one side, and statistical analysis of markov chains and stochastic processes on the other.
+The goal of the project was to investigate process mining as a field and to investigate how to use stochastic processes and statistical models to enhance models found through process mining.
+A good primer on process mining can be found in cite:10.1007/978-3-642-28108-2_19.
+The foundational advances in process mining that much of this work is based on is the work by W. Van der Aalst et. al. in cite:10.1007/978-3-642-28108-2_19, introducing the $\alpha$ algorithm and the notion of representing workflows as a workflow net as characterised in cite:Aalst96structuralcharacterizations . There now exist many ways to create Petri nets and process models from process logs created by enterprise resource planning (ERP) systems and other sources of lists of events - known as event logs. 
+Much of the functionality used in this project come from cite:aless2019process and references to the algorithms used are included. =PM4PY= is an open source python library that allows for process mining to be performed in python. While much functionality is provided in this library, the analysis of stochastic petri nets in the package is limited to the memorylessness SPN (stochastic petri net) construction where a memoryless firing policy is used, allowing the petri net to be represented as a Continuous Time Markov Chain (CTMC) as detailed in cite:probabilitycourse. The construction of this net is detailed in cite:10.1007/3-540-52494-0_23, using the process tree construction detailed in cite:vanderAalst2016 and cite:10.1007/978-3-642-38697-8_17. 
+A central challenge in this investigation was how to answer the problem of
+"is this a reasonable way to assess the time evolution of the process?".
+While techniques exist for building generalised stochastic petri nets with general distributions,  (see the GSPN construction in cite:10.1007/3-540-52494-0_23 ) the memoryless construction is a much more simple model and can be used to considerable effect in understanding the broad time evolution of a process. 
+This project details the effects of fitting Continuous time Markov Chain to a workflow net discovered by the $IM_D$ algorithm very similar to what is described in  cite:10.1007/978-3-319-19237-6_6. 
+This uses the 
+Continuous Time Markov chain construction from a stochastic workflow net. In
+using this construction, restrictions are placed on the data that can 
+be tested statistically using hypothesis tests. 
+The results of these tests can be extrapolated from to rule out memorylessness in a process
+on which a memoryless stochastic petri net has been constructed.
+
+** A note on PM4PY
+Process mining and data mining are two similar disciplines separated by tooling. For the most part process mining is performed in proprietary software or the =PROM= framework, an open source framework detailed in cite:vanDongen:2005:PFN:2144773.2144801.
+Used in this work is a python library called =PM4PY= which is detailed in cite:aless2019process
+and allows process mining to be done in a Python environment, more similar to tools familiar to data scientists such as =pandas= cite:mckinney-proc-scipy-2010, =scikit-learn=, and =scipy= cite:scipy.
+
+* Background theory
+  :PROPERTIES:
+  :header-args:  :tangle yes :async no :exports results :eval yes
+  :END:
+
+
+
+** What is process mining?
+Process mining is a discipline of data mining that involves the extraction of information from sequential event logs. 
+The event log is a series of categorised and sorted events that would happen over the course of a particular period of time.
+These events known as activities are categorised into cases and sorted by time.
+Generally speaking activities repeat a number of times in the dataset but may only occur once or twice over a particular case 
+Event logs are comprised of three pieces of information:
+1. the activity ID 
+2. the case ID
+3. the timestamp.
+More information may be available but this is what fundamentally comprises an event log the core data structure involved in process mining.
+
+*** An analogy.
+Imagine analysing the activity of a baker in a bakery and being asked to categorise everything the baker does in order to create a cookbook. In this case, a cookbook being a list of every possible way this baker could feasibly create a cake
+The act of making a cake is undoubtedly a complex and variable process considering the amount of possible ways to make what could be called a cake (even just in the English language!), with multiple different permutations of activities involved in the specific case dependant on what kind of cake being made.
+By recording and categorising each of the bakers specific activities (for example adding ingredients to a mixing bowl, mixing ingredients, kneading dough, cooking dough in oven for a specified amount of time etc, placing mixtures in the fridge to set overnight) and recording when they happen and how long it takes, an event log would be formed of these activities. The activity IDs would tend to be the name of the activity meanwhile the case IDs maybe take may take the form of a hash or UUID. Each case ID would specify each act of creating a cake that could be described by a concatenation of multiple activities. 
+*** What kinds of process mining is there?
+Three activities tend to fall under the umbrella of process mining 
+- Process Discovery :: this would be the act of using algorithms to construct a model that could constructs and replicate existing processes in the event log. in this work the inductive mining technique is used to create a directly follows graph which can be converted into a workflow net, a particular class of petri net with useful properties which can be converted into a transition diagram from which the time evolution of the process can be predicted probabilistically.
+- Conformance checking :: this is the act of ensuring the process model ie. the result of the Process Discovery phase fits real world behaviour. In this work token-based replay is used on the workflow net to derive properties and metrics corresponding to how well that workflow net model fits the data. Information on this is then used to inform further probabilistic models or to justify searching for other models of process mining in the event of a poor fit.
+- Performance mining :: is the act of analysing an existing model and describing properties of that model. For example, examining cycle times, waiting times, and throughput times of particular activities or sequences of activities.
+
+** The Event Log
+*** Formalisation
+An event log $L$ can be expressed as a sequence of activities denoted as $e$.
+The set of all possible activities is denoted $\Sigma$.
+The set of all possible sequences of activities (including the empty sequence $\epsilon$) is $\Sigma^*$, where $(\cdot)^*$ is the Kleene star.
+We can denote $T$, a trace in the log to be $T \in \Sigma^*$ and the event log as $L \subseteq \Sigma^*$
+and $\left| L \right| = {\displaystyle \sum_{T \in L}} \left|t \right|$
+*** Examples
+The event log has at minimum, cases, activities and the timestamps of those activities.
+Within each case a series of activities, called a Trace shows the activities and the order in which they are executed.
+#+name:background-event-log
+#+BEGIN_SRC jupyter-python :session final :display org-table :results raw :pandoc t
+
+dataframe[[name_dict["case"],name_dict["activity"],name_dict["t_stamp"]]].tail(8)
+
+#+END_SRC
+
+
+
+
+In this excerpt from an event log, the Case identification (=case:concept:name=) column is duplicated across a number of rows.
+Similarly, the =concept:name= column has the activities, denoted by lowercase letters and numbers, performed at times denoted by the timestamp.
+
+The data can be aggregated on the activities as below.
+#+name:background-activity-aggregation
+#+BEGIN_SRC jupyter-python :session final :display org-table :results raw :pandoc t
+pd.DataFrame.from_dict(activities_count,orient="index",columns=["count"]).sort_values("count",ascending=False).head(15)
+#+END_SRC
+
+
+
+
+
+
+
+
+There are activities that are more common over the dataset and some that are less common.
+*** Traces
+Here, we introduce the notion of a trace.
+A trace, also known as a variant, is a collection of activities executed in order from left to right in an ordered list.
+For example:
+#+name:background-case-aggregation
+#+BEGIN_SRC jupyter-python :session final :display org-table :results raw :pandoc t :eval no
+printorgtable(casestats.loc[:,["variant"]].head(10))
+#+END_SRC
+\begin{tabular}{ll}
+\hline
+ case:concept:name   & variant             \\
+\hline
+ case-10011          & 0,1,2,1             \\
+ case-10017          & 0,5,1,2,1,g,2,1,2   \\
+ case-10024          & 0,1,3,4,5,g         \\
+ case-10025          & 0,1,3,4,5,g         \\
+ case-10028          & 0,1,3,4,5,g,m,n,p,q \\
+ case-10059          & 0,1,3,4,5,g         \\
+ case-10061          & 0,5,g,1,3,4         \\
+ case-10062          & 0                   \\
+ case-10065          & 0,1,3,4,5,g         \\
+ case-10066          & 0,1,3,4,5,g         \\
+\hline
+\end{tabular}
+
+
+
+
+This table shows that 
+src_jupyter-python[:session final]{log[-10].attributes["concept:name"]} {{{results(='case-4810'=)}}} starts with 
+src_jupyter-python[:session final]{log[-10][0]["concept:name"]} {{{results(='0'=)}}}
+and ends with 
+src_jupyter-python[:session final]{log[-10][-1]["concept:name"]} {{{results(='g'=)}}}.
+
+Traces can have common starting and ending activities throughout the dataset.
+It is useful to analyse the dataset in terms of directly-follows relations - simply recording which activities follow each other and investigating the structure of processes through this lens.
+** Directly-Follows Graphs 
+*** Formally
+We can define the directly follows graph of a log $L$ as $G(L)$, a directed graph with nodes corresponding to activities $a,b,\ldots \in \Sigma$ and arcs drawn from node $a$ to node $b$ if $\left[\ldots,a,b,\ldots\right] \in L$.
+*** Example
+This is an area where an analogue between process mining and data mining can be made.
+A directly follows graph is to process mining as a scatter plot is to traditional data mining.
+Subsequent analysis often depends on the analysis of this type of structure.
+Below is a table showing the most frequent arcs drawn in a particular event log,representing the pairs of activities most often following each other.
+#+name:background-directly-follows-graph-table
+#+BEGIN_SRC jupyter-python :session final :display org-table :results raw :pandoc t
+pd.DataFrame.from_dict(dfg_frequency,orient="index",columns=["Frequency"]).sort_values("Frequency",ascending=False).head(7)
+#+END_SRC
+
+
+
+Here is the graph of the same data tabulated above, with line weights representing the frequency of the directly-follows relationship between two adjoining activities.
+#+ATTR_LATEX: :height 0.8\textheight :width 1\textwidth
+#+name: background-xmpl-dfg
+#+caption: The Directly Follows graph of the =receipts.csv= dataset described below. Nodes correspond to activities and arcs correspond to the frequency in the log that activities that occur one after another. 
+[[./receiptsFINAL/receiptsFINAL100pc_0dfdfg-freq.png]]
+** Process Trees
+Process trees are a notation used to create block structured process models that can represent event logs in an abstract sense with very little loss of generality.
+A process tree is a tree where the leaves are individual activities, and nodes in the tree are operators on the activities.
+Traces can be recreated by evaluating the tree.
+As proven in cite:10.1007/978-3-642-38697-8_17 and cite:10.1007/978-3-319-19237-6_6, the execution of process trees results in processes that fulfil certain qualities in themselves and when translated into petri nets or markov chains later, at the cost of introducing the hidden transition $\tau$ into the activities.
+
+*** Inductive Miner - Directly Follows Based
+Directly-follows graphs often have certain characteristics that allow certain cuts to be created in the graph. These cuts map onto structures directly representable by process trees.
+Directly follows graphs can be cut into smaller and smaller parts, turned into process trees and concatenated onto one another.
+The IM framework, as detailed in cite:10.1007/978-3-319-19237-6_6 details 4 different operators and their characteristic structures in directly follows graphs - see fig.3 in cite:10.1007/978-3-642-38697-8_17.
+
+** Petri Nets
+*** Informally
+A petri net can be described as a directed graph with transitions and places (hence it's alternate name: place/transition graphs) with a semantics for allowing tokens to travel along those arcs.
+
+#+ATTR_LATEX: :height 0.8\textheight :width 1\textwidth
+#+name: background-xmpl-smallwfnets
+#+caption: A set of small, sound petri nets from cite:10.1007/978-3-642-38697-8_17. 
+[[~/Pictures/fig4_soundones_from_first_paper.png]]
+Each unfilled circle is a place, and each labelled square is a transition.
+A filled circle in a place is called a token and the movement of this token is the key to understanding how these models can be used to model processes.
+A transition can "fire" if each of the places before it have a token in it. If a transition fires, one token is removed from each input place, and placed in an output place.
+For example, with $N_2$ above, we can keep track of the transitions that have been activated in a sequence called the firing sequence, usually denoted $\sigma$. This firing sequence will be how we construct traces in an event log.
+Similarly, a multiset $M$ can be made out of the places in the Petri Net, with the multiplicity of the net representing the number of tokens in it.
+Denoting each place by the transition that proceeds it,(or out if it's the final place to the right) the markings go from 
+\begin{eqnarray*}
+&M_0 = [\bullet A^1,\bullet (BC)^0,\bullet D^0,(out)^0]\;&\sigma = []\\
+&\overset{A}{\to}:\\
+&M_1 = [\bullet A^0,\bullet (BC)^1,\bullet D^0,(out)^0]\;&\sigma = [A]\\
+&\overset{B}{\to}:\\
+&M_2 = [\bullet A^0,\bullet (BC)^0,\bullet D^1,(out)^0]\;&\sigma = [A,B]\\
+&\overset{D}{\to}:\\
+&M_3 = [\bullet A^0,\bullet (BC)^0,\bullet D^0,(out)^1]\;&\sigma = [A,B,D]\\
+\end{eqnarray*}
+
+*** Formally
+a Petri net is a triple $N = (P,T,F)$ such that
+- $P$ a finite set of places
+- $T\; |P \cap T = \emptyset$ a finite set of transitions
+- the flow relation $F \subseteq (P\times T) \cup (T\times P)$ which dictates the "directedness" of the petri net
+- then we can denote a marked petri net $N\prime = (M,N)$
+- where M is a multiset $M = \mathbb{B}(P)$ showing the marking of this net. 
+- The set of all marked petri nets is denoted $\mathcal{N}$
+**** Defining nodes and firing rules 
+
+
+Given a petri net $N$ defined above
+- define nodes as $P \cup T$. ie. either places or transitions are nodes.
+- node $x$ is an input node of another node $y$ if and only if there is a directed arc from x to y (i.e $((x,y) \in F)$) denoted $\bullet x = \{y |(y, x) \in F\}$ 
+- similarly, node $x$ is an output node of another node $y$ if and only if there is a directed arc from x from y (i.e $((x,y) \in F)$) denoted $x\bullet = \{y |(x, y) \in F\}$
+- $\bullet a$ can be read as "nodes before a"
+- and $a \bullet$ can be read as "nodes after a"
+
+So then the firing rules themselves can be described
+- let $(N, M)$ be a marked Petri net with $N=(P, T, F),\; M \in \mathbb{B}(P)$ 
+- Transition $t \in T$  is enabled and denoted $(N, M)[t\rangle \iff \bullet t \leq M$
+- The firing rule $\_[\_\rangle \subseteq \mathcal{N} \times T \times \mathcal{N}$ is the smallest relation satisfying 
+- $(N, M) \in \mathcal{N} \forall t \in T\, (N, M)[t\rangle \to (N, M)[t\rangle(N, M (\setminus \bullet t \uplus t\bullet))$
+- informally, the firing rule is defined as a mapping from the set of all marked petri nets to the set of all marked petri nets reachable through all transitions.
+- and then it takes the markings at a $M_n$, takes the nodes before $t$, and puts them after $t$, and calls it $M_{n+1}$
+- we then can construct a sequence $\sigma = [t_{1}, t_{2}, ... t_{n}]$ which corresponds to a set of marking multisets $\{M_{i}\}^{n}_{i=1}$ of the same petri net $N$.
+- These firing sequences are how petri nets can be used to represent traces in an event log!
+**** Firing sequences notation
+
+The notation $M \overset{t}{\to} M'$ can be used to describe using some transition $t$ to move from marking $M$ to marking $M'$.
+
+
+The notation $M \overset{\sigma}{\to} M'$ can be used to describe using an specific sequence of transitions $\sigma$ to move from marking $M$ to marking $M'$.
+
+
+The notation $M \overset{*}{\to} M'$ can be used to describe using an unspecified firing sequence transition to move from marking $M$ to marking $M'$.
+
+*** Useful properties of Workflow Nets
+Ideally, we want to use Petri Nets to model a sequence of activities. However, subject to the notation above, there are restrictions on which Petri nets are actually useful to this end.
+These Petri nets are called Workflow nets.
+These nets have the following three properties.
+
+**** Option to Complete
+A workflow net firstly has two important places 
+- a start place $i$
+- st. $\bullet i = \emptyset$
+- and a completion place $o$
+- st. $o\bullet = \emptyset$
+A workflow net will have a firing sequence that allows a token to end up in the final state $[o]$ given that it starts in the state $[i]$. This is guaranteed if each couple of places and transitions of the petri net $(P,T)$ are strongly connected. cite:Aalst96structuralcharacterizations.
+Formally,
+$\forall M, ([i] \overset{\star}{\to}M \implies M\overset{\star}{\to}[o])$
+This condition is called *option to complete*.
+
+**** Proper completion
+A workflow net can not only be completed, it can be completed in such a way that the only marking left is $[o]$.
+Formally, a workflow net satisfies *Proper completion* if  
+$\forall M,[i] \overset{\star}{\to}M \land M \ge [o] \implies M = [o]$
+
+**** No dead transitions 
+A dead transition is a transition that impossible to enable.
+A transition that is impossible to enable means that it is impossible to collect enough tokens before it to allow it to fire. 
+Formally,
+$\forall t \in T, \exists M,M': [i] \overset{\star}{\to} M \overset{\t}{\to}M^{\prime}$
+
+
+*** Given those three properties, what does that imply?
+If all three of those properties hold, the Petri net is called a *sound* Workflow net.
+In addition, the existance of a single input and output node implies (see cite:Aalst96structuralcharacterizations) that the workflow net is *k-bounded* for some initial starting amount of tokens $k$.
+It also places a bound on the number of times a transition is featured in a net.
+In addition, due to constraints placed by the representational bias of process trees the  Workflow nets found by the Inductive miner are well-structured, free-choice cite:10.1007/978-3-642-38697-8_17 
+These are conditions in cite:Aalst96structuralcharacterizations that allows $k$ to be bounded at 1 and denoted *1-bounded* or *safe*, which result in Workflow nets that are more amenable to representation as a Transition diagram (see section BLAH). 
+As discussed in the section above on discovering process trees and in cite:Ahmadon_2013, a process tree necessarily maps to a sound workflow net.
+While not all workflow nets map to a process tree, all process trees map to workflow nets.
+The use of the Inductive miner has disadvantages - namely the use of the invisible transition $\tau$ used to allow Petri net traversals that would otherwise not be possible in terms of the Petri net and the event log. This promotes a high fitness (see next section) but may adversely affect simplicity and readability.
+*** An example workflow net 
+
+
+
+#+ATTR_LATEX: :height 0.8\textheight 
+#+name: background-xmpl-wfnet-nice
+#+caption: A workflow net discovered from the =receipts.csv= dataset.  The petri net above is a workflow net.It has specific start and end places, indicated in green and gold respectively.
+[[./receiptsFINAL/receiptsFINAL90pc_100dffrequency.png]]
+#+LATEX: \pagebreak
+
+
+
+** Petri net replay
+A sense of how well the workflow net fits the data can be defined in terms of how tokens move through the petri net. This process is called token-based replay.
+Each one of the traces in the event log are "played into" the workflow net. The trace is reproduced by attempting to traverse the workflow net using a given trace as a firing sequence. Invisible transitions can be used to move around the petri net without adding to the firing sequence. The number of tokens consumed and produced (by activating transitions) is recorded. This is important in the context that not all process models are guaranteed to fit and that unfit models can produce tokens in unexpected places which affect the playback of the model.
+Notably in the case of Petri nets, four metrics are defined in terms of how many tokens are produced and consumed in the process of firing transitions and how many tokens are created and deleted for the sake of getting the petri net to complete.
+
+
+In the replay, the amount of tokens produced, consumed, missing and remaining are defined as $(p,c,m,r)$ respectively.
+*** Fitness. 
+Fitness quantifies the extent to which the discovered
+model can accurately reproduce the cases recorded in the log.
+In a token based replay, this is calculated as
+\begin{eqnarray*}
+\text{Fitness}(m,c,r,p) = \left(1-\frac{m}{c}\right)\left( 1- \frac{r}{p}\right)\\
+\end{eqnarray*}
+This is $1$ for perfectly fitting traces and $0<\text{Fitness}(m,c,r,p)<1$ for non-fitting traces.
+
+
+*** Simplicity. 
+Process mined petri nets can often be a useful tool to describe a process on a human level. It is often desirable to seek the simplest model that describes the data, bearing in mind it how possible it is to produce workflow nets and petri nets described as "spaghetti diagrams".
+Workflow nets are not implicitly designed with readability in mind, and as such this is often a low metric for them but process discovery algorithms that strongly focusses on simplicity 
+such as the $\alpha$-miner and the SIMPLE algorithm provided by cite:aless2019process.
+These discovery techniques generally result in small, simple models, but with low replay
+fitness.
+\begin{eqnarray*}
+\text{Simplicity} = \frac{1}{1+\frac{ | \text { no-places } |}{1 \text { no-transitions } |}}
+\end{eqnarray*}
+
+*** Generalization. 
+Generalization assesses the extent to which the resulting model will be able to reproduce future, unspecified in the log behavior of the process.
+In addition, it also measures how broad the scope of the model is with respect to sequences of defined activities. 
+For example a very precise model could be made that fits
+each individual case in the log as a separate path in the model. This is clear overfitting and this score seeks to diagnose cases like it.
+\begin{eqnarray*}
+\text{Generalisation} =   1-\frac{\sum_{t \in \text { transitions }} \sqrt{\frac{1}{\text { n.occreplay }(t)}}}{ | \text { transitions } |}
+\end{eqnarray*}
+** (Memoryless) Stochastic Petri nets
+Petri nets are formalised in such a way that while the flow relation between places and transitions tells us how to get from place $A$ to $B$, the transitions are simply a means to that end.
+The standard formalism only specifies when a transition *can* be fired, not when they *are* fired.
+To that end, an additional object is added to the Petri net triple $N = (P,T,F)$.
+Define $\Lambda$, a set of positive firing rates associated with each transition.
+Formally, $\Lambda = \{\lambda_{t}\}_{t \in T} \in \mathbb{R}:\lambda>0$, and a stochastic Petri Net is then $SN = (P,T,F,\Lambda)$.
+
+These firing rates dictate how often a transition is activated per unit time.
+Given a transition $t \in T$ we can define the sojourn time in $\bullet t$ as a random variable $S_{\bullet t}$.
+This simple notion of making transitions occur randomly across all activated transitions implies that the transition firing rate is *memoryless* - implying that in the continuous time case
+$S_{\bullet t} \sim Exp(\lambda_{\bullet t})$ 
+This allows the notion of completing a Workflow net to relate to timespans defined in the process and allows you to ask questions of the model like "how long does the model take to complete" without explicitly introducing timing mechanisms into the Petri net formalism. However, it does enforce a heavy-handed assumption of exponential sojourn times on any event logs analysed in this way. The implications of this assumption is discussed further through this paper.  
+
+** Transition Systems and Reachability
+A transition system is a simple way of modelling processes in a fashion that uses directed graphs.
+It is similar to a Petri net and is described in cite:vanderAalst2016 as a triplet $(A,S,T)$ of the activities, states and transitions but has key differences in it's semantics.
+$A$ is a set of all activities that would appear in an event log and $S$ is the series of states of the system. 
+The activities however, have a one-to-many relationship with $T$, the transitions, which generally have are a subset of $S \times A \times S$ structure (where ($\times$) is the cartesian product). Transitions here exist between states which can be defined for most if not all process mining techniques.
+While the simplicity of transition systems is useful, they have a fundamental problem with representing concurrency as discussed in cite:vanderAalst2016.
+If attempting to model $N$ concurrent activities - take for example an =AND= split in a Petri net -  in this situation, $\left|A \right| = N$ and there are $|M| = m$ tokens. One has to create $|S| = (m+1)^{N}$ states to account for that process, which can result in very large - or possibly even infinitely sized - transition graphs.
+*** Reachability
+The reachability graph is a way of converting a Petri net into a transition system.
+The states of the transition system $S$ correspond to markings $M$ of the Petri net. Each state is a specific marking of the petri net.
+
+Working with workflow nets makes the transition graph much more tractable.
+Workflow nets are sound and bounded, meaning all transition graphs of workflow nets are bounded.
+Given that the inductive miner creates well-structured workflow nets, they are going to be safe ie. 1-bounded, leaving the worst case $\left| S \right| = 2^{N}$ for N activities all acting in parallel. 
+*** A reachability graph
+
+#+ATTR_LATEX: :height 0.8\textheight :width 1\textwidth
+#+name: background-reachability-graph
+#+caption: The reachability graph of the dataset described above. A reachabilty graph is a transition system based on the states in a petri net. Nodes correspond to permutations of possible locations of markings in a petri net for a given initial condition of $M = \{source1^1\}$ 
+[[./receiptsFINAL/receiptsFINAL100pc_0dfts_unlabeled.png]]
+#+LATEX: \pagebreak
+
+
+** Reachability graphs from transition systems 
+A Stochastic Petri Net $SPN = (P,T_{pn},F,\Lambda_{pn})$
+The transition system of $SPN$ is a tuple $TS = (A,S,T_{ts},\Lambda_{ts})$.
+The state space $S$ is bounded and as such represents a countable state space for a Markov chain.
+The transitions occur in $SPN$ with a probability provided by a memoryless distribution, with parameters $\lambda_{pn,i} \in \Lambda_{pn}}$. These probabilities can be found using maxiumum likelihood estimation for the parameter $\lambda_{t,pn}$ with respect to the data associated with that activity in the event log.
+$\Lambda_{pn}$ is a bijection between elements of $T_{pn}$ and the parameter of the memoryless distribution function $\lambda_{pn,i}$
+Similarly, $\Lambda_{ts}$ in the transition system is a bijection between $T_{ts}$ and the parameters of the memoryless distribution $\lambda_{ts,i}$.
+While generally, $T_{ts} \ne T_{pn}$ and $\Lambda_{ts} \ne \Lambda_{pn}$,
+for the most their elements are broadly similar.
+Where a transition in a petri net only consumes and produces an equal amount of tokens, the transition between those corresponding states in a transition system is exactly the same.
+However, if the amount of tokens is not preserved over a transition, the transition system expands to capture the combination of tokens in the petri net.
+This leads to non-unique transitions in the transition system. 
+
+Another issue comes from the situation where there are multiple transitions between two places in a stochastic petri net. This would correspond to an =XOR= split in a Petri net and raise the issue of creating a mixture distribution of memoryless distributions.
+Given that transition time is independant of the amount of tokens in a place, and a transition is activated only when the place before it has a token in it, it only needs to fire once between all transitions in the =XOR= split for the transition to occur.
+Memoryless distributions have properties which allow the simplification of this problem, at the cost of discarding some information about *which* transition fired.
+
+** Markov Chains
+The notion of memoryless transitions in a transition system can be represented well in a stochastic process known as a Markov Chain.
+A summary of some important results is presented here. Further proofs of results can be found in cite:statlect and cite:probabilitycourse.
+Broadly speaking, a Markov chain is a random process over a countable state space (eg. an interval $[-x,x] \in \mathbb{Z}$, a graph with $N$ nodes etc) where you can assign a probability of going from one state to another for each pair of states. This transition probability is only dependant on /where you are at a given time/ rather than /where you have been/.
+*** Generally...
+A Markov Chain is a stochastic process: a sequence of random variables $\left[X_{t}\right]_{t\ge 0}$ that resolve to states $S = \{x_{t}\}$ ith the *Markov Property* defined below.
+\begin{eqnarray*}
+P(X_{t} = x_{t} \mid X_{t-1} = x_{t-1},X_{t-2} = x_{t-2}},\hdots,X_{1} = x_{1},X_{0} = x_{0})
+\\= P(X_{t} = x_{t} \mid X_{t-1} = x_{t-1}) \\
+\end{eqnarray*}
+This means the probability of being in a state at time $t=t+1$ only depends on where you were at $t=t$, where you are at $t=t$ only depends on where you were at $t=t-1$, and so on until $t=0$.
+While Markov chains can be defined in a time-inhomogenous sense (where transition probabilities depend on the total time in the system as a whole), the Markov chains used here are all *time-homogeneous* and as such
+\begin{eqnarray*}
+\forall t \ge 0, \; P(X_{t + 1} = x_{t+1}|X_{t} = x_{t}) = P(X_{t} = x_{t}|X_{t-1} = x_{t-1}) 
+\end{eqnarray*}
+As such, it obeys the Chapman-Kolmogorov equations that simplify calculating transition probabilities. (see below.) 
+\begin{eqnarray*}
+&i,j \in S\\
+
+&P(X_{t + s} = x_{t+s}|X_{t} = x_{t}) &= P(X_{t + s} = j|X_{t} = i)\\
+
+= P_{i,j}^{(s)} &= {\displaystyle \sum_{k\in S}} P_{i,k}(s)P_{k,j}(0) \\&= {\displaystyle \sum_{k\in S}} P_{k,i}(s)P_{j,k}(0)\\ 
+
+P_{i,j}^{(s+t)} = 
+
+&= {\displaystyle \sum_{k\in S}} P_{i,k}(t+s)P_{k,j}(t) \\&= {\displaystyle \sum_{k\in S}} P_{k,i}(t+s)P_{j,k}(t) 
+&= \text{Chapman Kolmogorov equation}
+\end{eqnarray*}
+Given that there are $|S| = N$ states in the chain, the state vector is a $N\times 1$ vector denoting what state the system is in at time $t$,$x_{t}$,   $x_{t}\textbf{P}^{s} = x_{t+s}$, allowing us to interpret $P^{s}$ (the transition matrix exponentiated by s) as a time evolution operation.
+*** Properties of paths
+It is possible to find the total probability of going from a state $i$ to a state $j$ by taking the product of one step probabilities of each intermediate state.
+Denoting the path through the chain as a sequence states of length $m$, $[\sigma]_{k=0}^{k=m}$ such that $\sigma_{0} = i, \sigma_{m} = j$ 
+to be 
+\begin{eqnarray*}
+P_{\sigma} &= {\displaystyle\prod_{k=1}^{k=m}} \left[ P_{k-1,k} \right]
+\end{eqnarray*}
+by the Chapman-Kolmogorov equation.
+Given a trace $\sigma = [a,b,c,d,e]$, the probability of taking this path from $\bullet a$ to $e\bullet$ is
+\begin{eqnarray*}
+P_{i,j} &= P_{i,a} \cdot P_{a,b} \cdot P_{b,c}  \cdot P_{c,d}  \cdot P_{d,e} \cdot P_{e,j}  \\
+
+\end{eqnarray*}
+It is possible to go further with this. If, for example, a sojourn time is associated with each probability (as it will be in the continuous case)
+this expression can be used to find the expected travel times associated with each path through the chain. 
+\begin{eqnarray*}
+E_{\sigma}[S_{i,j}] &= {\displaystyle\sum_{k=1}^{k=m}} E[S_{k-1,k}]\\ &= {\displaystyle\sum_{k=1}^{k=m}} S_{k-1,k} \cdot P_{k-1,k}
+\end{eqnarray*}
+
+This is a result that will be used later to determine if a path through a process is memoryless.
+**** Properties
+$P_{i,j}^{(s)}$ is a $|S|x|S|$ square matrix that can be read as
+"the probabilty of getting from state $i$ to state $j$ in $s$ time steps."
+The dynamics of the chain can be derived from the rows of the matrix.
+
+- Hitting time :: the hitting time of $a$ is the first time it takes for a Markov chain to be in this state $a$ from an initial state $i$. $k_{i,a} = \underset{t}{argmin}[t\ge 1:X_{t}=a|X_{0}=i]$ 
+- Transient state :: A *transient* state is a state for which $P(T_{i,i} < \infty|X_{0}=i)<1$ 
+- Recurring state :: A *recurring* state is a state that is not transient. $P(T_{i,i} < \infty|X_{0}=i)=1$ 
+- Absorbing state :: A state $A \in S$ can be called *absorbing* if $P_{A,A} = 1$. The chain is called an *absorbing chain* if it is possible to reach $A$ for each $i \in S$.
+- all absorbing states are recurring.
+A Markov chain with transition matrix $\textbf{P}$ absorbing chain with $|A|=a$ states with $r$ transient states can be decomposed into a block matrix
+
+\begin{equation*}
+\textbf{P} = \begin{bmatrix}
+\textbf{Q}&\textbf{R}\\
+\textbf{0}&\textbf{I}\\
+\end{bmatrix}
+\end{equation*}
+where
+- $\textbf{Q}$ a square $(a-r)\times(a-r)$ matrix of transient states
+- $\textbf{R}$ a $r\times (a-r)$ matrix showing the probabilities of transitioning into absorbing states from transient states
+- $\textbf{0}$ is the $r\times (a-r)$ zero matrix showing the probabilities of transitioning from an absorbing state into a recurring state - ie. 0 for all states. 
+- $\textbf{I}$ is the $r\times r$ identity matrix.
+This decomposition of the transition matrix is useful in solving for hitting probabilities and times.
+
+
+*** Discrete time
+**** Formally
+The Chapman-Kolmogorov equations imply that a probability from each state to each state for some unit time can be defined as:
+\begin{eqnarray*}
+\forall i,j \in S\\
+0<s<t \in \mathbb{N}
+P(X_{t + s} = j|X_{t} = i) = P_{i,j}^{(s)}\\
+P(X_{t + 1} = j|X_{t} = i) = P_{i,j}^{(1)} = P_{i,j}\
+\end{eqnarray*}
+
+
+Further properties include
+***** Row-stochasticity
+${\displaystyle \sum_{j=1}^{|S|}} P_{i,j} = 1$
+***** Stationary distribution
+A stationary distribution, denoted $\pi$ for the transition matrix $\mathbf{P}$ can be defined in terms of a left eigenvalue problem - $\pi \mathbf{P} = \pi \mathbf{1}$. By solving for the eigenvectors of the system where the eigenvalues of $\mathbf{P}$ are 1, the corresponding eigenvectors are $C\pi$ where C is some normalising factor that can be removed by forcing the additional constraint ${\displaystyle \sum_{i}}\pi_{i} = 1$
+***** The fundamental matrix
+The fundamental matrix $N_{i,j}$ of a markov chain is the matrix that describes the expected amount of times that the chain will transition from state $i$ to state $j$.
+Noting that for a given power of $\underset{s\to\infty}{lim}Q^{s}_{i,j} \to 0$, we could find some meaning in what an infinite sum of $Q$s would look like. As $\left|Q\right| < 1$, this means that the infinite sum ${\displaystyle \sum_{s}^{\infty}}Q^{s} =(I-Q)^{-1} = N$. The result of this summation is the fundamental matrix.
+
+From this, we can find the probability of absorption $P(X_{t}=a) = NR$ where $R$ is defined in the block matrix above.
+We can also find the expected amount of jumps from state $i$ until absorption $E[T_{i,a}] = N\cdot \mathbf{1}$.
+*** Continuous Time Markov Chains
+Note: as with the section above, the majority of this section is concerned primarily with the presentation of some useful results rather than detailed proofs.
+Further information can be found in cite:Durrett2012 .  
+**** Formal Construction
+Another way of arriving at the notion of a transition matrix is by using infinitesimal times in the Chapman-Kolmogorov equation given the notion of a memoryless process.
+\begin{eqnarray*}
+\forall& t \ge 0, i,j \in S\\
+\text{as }, &\underset{h \to 0}{lim}\\
+&P(X_{t + h} = j|X_{t} = i) = \delta_{i,j} + q_{i,j}h + o(h)
+\end{eqnarray*}
+
+- $\delta_{i,j}$ is the Kronecker delta
+- and $q_{i,j}$ is a parameter parameterising the transition from state $i$ to $j$.
+**** A note on exponentially distributed random variables
+If a random variable $X$ can be said to be exponentially distributed (ie. $X\sim Exp(\lambda)$) it has a few interesting properties.
+1. It is defined only for $t\ge 0$
+2. Probability density function :: $X \sim Exp(t) = \lambda e^{-\lambda t}$
+3. Cumulative probability function :: $P(X\le t) = 1-e^{-\lambda t}$
+4. Survival function (complement cumulative probability function) :: $P(X > t) = e^{-\lambda t}$
+5. Memorylessness :: $P(X > t + s \mid X > t) = P(X>s)$. Note: this is the *only* continuous memoryless distribution. 
+
+***** How to test exponential-ness
+Exponentiality is tested in three ways for the sake of this dataset.
+1. Graphically
+2. Explained Variance ($R^2$)
+3. Anderston Darling test (A^2)
+
+The first property is assessed by looking at the histograms of the transition times and comparing them to the corresponding density of the exponential distribution it's fit to. 
+Comparing the two visually may be enough to rule out the most egregious misfits but not all.
+As such, most of the testing is done with the CDF of the fit distribution against the ECDF.
+The ECDF is known as the Empirical Cumulative Distribution Function and is defined as
+\begin{eqnarray*}
+\text{Given data} \{X_{i}\}^{n}_{i=1}\\
+\hat{F}(x) = \frac{1}{n}{\displaystyle \sum_{i=1}^{n}} \mathbf{1}[X_{i}\le x]]}
+\end{eqnarray*}
+This is a good estimator for the CDF cite:statlect. Both tests here are defined in terms of the difference $\hat{F}_{n}(x)-F(x)$.
+As there is only one parameter $\lambda_{i}$ for each transition fit, 
+$R^{2}$ is an acceptable indicator of fit, where $R^{2}$ can be defined in this context as
+
+\begin{eqnarray*}
+\sigma^{2}_{res} =MSE(F(x),\hat{F}(x)) =  \left(\frac{1}{n-1}\right)(\hat{F}_{n}(x)-F(x))^{2}\\
+\sigma^{2} = Var[\hat{F}(x)] \\
+R^{2} = 1- \frac{\sigma^{2}_{res}}{\sigma^{2}}
+\end{eqnarray*}
+
+Finally, the Anderson-Darling test is used on the transition times.
+The Anderson-Darling is a variation of the Kolmogorov-Smirnov test that weighs the evidence of a sample coming from a given distribution.
+The null hypothesis applied to each set of data corresponding to the transition times of each activity is: 
+cite:doi:10.1111/j.2517-6161.1982.tb01213.x
+\begin{eqnarray*}
+H_{0}: S_{i} \sim Exp(\lambda_{i})
+\end{eqnarray*}
+A test statistic can be calculated as follows. If the test statistic is greater than the tabulated values, the null hypothesis is rejected.
+\begin{eqnarray*}
+\\\text{Given data} \{X_{i}\}^{n}_{i=1}\\
+A^{2}=-n-\sum_{i=1}^{n} \frac{2 i-1}{n}\left[\ln \left(F\left(X_{i}\right)\right)+\ln \left(1-F\left(X_{n+1-i}\right)\right)\right]
+\end{eqnarray*}
+This test is most sensitive to deviations from the fit distribution around the tails, but is generally useful for all parts of the distribution.
+
+**** Properties
+***** Memorylessness implies exponential sojourn times
+Consider $X_{0}=i$, and $X_{S_{i}}=j$, where $S_i$ is the first leaving (sojourn) time from $i$.
+\begin{eqnarray*}
+&P(S_i > t+s\mid S_{i} > t) \\&= P(X_{t+s} = i \mid X_{t}=i)\text{by markov property}\\
+&=  P(X_{s} = i \mid X_{0}=i) \text{by time homogeneity}\\
+&= P(X_{s}=i)\text{... but wait! thats}\;\; P(S_{i}>s)\\
+&\implies $P(X > t + s \mid X > t) = P(X>s)$.
+\end{eqnarray*}
+The requirement that the sojourn times are memoryless AND continuous implies that
+$S_{i} \sim Exp(\lambda_{i})$
+
+***** The transition rate matrix
+A transition matrix with specific probabilities can only be defined for use over time intervals, rather than intervals of infinitesimal time. Constructing a $P_{i,j}$ in a similar fashion as above with the discrete case results in having entries like $P_{i,j}^{(h)}$, which would not be very useful in the limit where $h \to 0$. 
+It does have its uses when used in terms of sojourn times (see the section below on the jump chain construction) as in $P_{i,j}^{(S_{i})}$, it is not as fundamental a structure as it is in the discrete time case.
+Given $S_{i} \sim Exp(\lambda_{i})$...
+\begin{eqnarray*}
+\lim_{h\to 0} P(S_{i} < h) &= 1-e^{\lambda_{i}h}\\
+&\approx 1-(1-\lambda_{i} h) \text{by taylor approximation for very small h}\\
+&=\lambda_{i} h\\
+& \text{rearranging for}\;\; \lambda_{i}\\
+\lambda_{i}&=\lim_{h\to 0} \frac{P(S_{i} < h)}{h}
+\\&= \lim_{h\to 0} \frac{P(X_{h}=j\mid X_{0} = i)}{h}
+\end{eqnarray*}
+We can further split this up into rows of a transition rate matrix.
+Denoting $p_{i,j}$ as the jump probabilities $P_{i,j}^{S_{i}}$, we can define the transition rate matrix as the transition rate matrix $\mathbf{Q} = q_{i,j}$.
+\begin{eqnarray*}
+\text{for}\;\;i\ne j\\
+q_{i,j} 
+&= p_{i,j}\lambda_i\\
+\text{for}\;\;i = j\\
+q_{i,i} 
+&=-\sum_{j \neq i} q_{i j} \\
+&=-\sum_{j \neq i} \lambda_{i} p_{i j} \\ 
+&=-\lambda_{i} \sum_{j \neq i} p_{i j} \\ 
+&=-\lambda_{i} 
+\end{eqnarray*}
+
+
+
+**** The Jump Chain
+For every continuous time markov chain, there is an underlying discrete time equivalent.
+This is known as the embedded markov chain or the jump chain.
+Given a CTMC as a stochastic process: a sequence of random variables $\left[X_{t}\right]_{t\ge 0}$ that resolve to states $S = \{x_{t}\}$, 
+The embedded chain is $Y_{n} = \{X_{S_{i}}\}$ where $S_i$ is the sojourn time from state $i$.
+It has a transition matrix $p_{i,j} = P(X_{S_{i}}=j\mid X_{0}=i)$ - a conditional probability that says "given that the chain leaves state $i$ at $S_{i}$, where will it go?"
+
+This can be found by 
+\begin{equation*}
+p_{i j}=\left\{\begin{array}{ll}{\frac{q_{i,j}}{\sum_{k \neq i} q_{i,k}}} &  i \neq j \\ {0} & {i=j}\end{array}\right.
+\end{equation*}
+
+**** Kolmogorov Forward and Backward equation
+Two differential equations can be used to represent the time evolution of this chain.
+Given a vector of $|S|$ probabilities at time $t$ states $P(t)$,
+
+\begin{eqnarray*}
+\textbf{Kolmogorov Backward Equation     }\;\;&\frac{dP(t)}{dt} &= Q\; P(t)\\
+\textbf{Kolmogorov Forward Equation     }\;\;&\frac{dP(t)}{dt} &= P(t)\;Q\\
+\end{eqnarray*}
+
+This can be solved by noting that it is a homogeneous first order linear ordinary differential equation with a solution in terms of the matrix exponential 
+\begin{equation*} 
+P(t) = \exp[{-At}]P(0)
+\end{equation*}
+**** Hitting times and solutions of equations involving $\mathbf{Q}}$
+A number of useful systems of equations can be found in terms of the fundamental matrix 
+The fundamental matrix can similarly be defined for the embedded jump chain and used to determine the probabilities of absorption and average number of jumps until absorption.
+The transition rate matrix can also be used in a number of ways to find properties of the chain.
+***** Stationary distribution
+Using the Kolmogorov equation, it is possible to consider the system of equations $Q P(t)$ as the amount that $P(t)$ will change over an infinitesimal amount of time $dt$, thus finding $\frac{dP}{dt}$. On that note, a system with $Q P(t) = 0$ can be interpreted as a distribution over states that does not change over time. Similarly to the discrete time case, a distribution over states $\pi$ such that $\pi Q = 0$ can be solved using linear algebra techniques.
+This can be considered the long-run behaviour of the chain as $t \to \infty$.
+For absorbing chains, this will generally be a vector of 0s with a 1 in the absorbing state.
+***** Hitting times
+The hitting probability of a state $P(X_{T_{A}} \in A \mid X_{0} = i) = h_{i}^{A}$ is defined as the probability of getting to a state in a $A\subset S$ from $i$ through all possible routes in the chain.
+Using some initial conditions, it is possible to deduce a system of equations that will represent this system.
+Given that $h_{A}^{A} = 1$ - stating that the probability of going to a state in $A$ from $A$ is 1... 
+\begin{eqnarray*} h_{i}^{A} &=1 \quad i \in A \\ \sum_{i\not\in A} q_{i,j} h_{j}^{A} &=0 \quad i \notin A \\
+- q$_{i,i}h_{i}^{A} + \sum_{i\not=j}q_{i,j}h_{j}^{A} &= 0 \\
+\text{Matrix Form}}\\
+Q_{i,j} h^{A}_{j} = \mathbf{1}[i \in A]
+\end{eqnarray*}  	  
+***** Average hitting times
+A similar system can be constructed for hitting times if the sojourn times can be taken into account.
+The hitting time of a state $E[T_{A}] = k_{i}^{A}$ is defined as the mean time taken through all paths of the chain of getting to a state in a $A\subset S$ from $i$.
+Given that $k_{A}^{A} = 0$ - stating that the time taken going to a state in $A$ from $A$ is 0... 
+\begin{eqnarray*} 
+k_{i}^{A} &=0 \quad i \in A \\
+q$_{i,i}k_{i}^{A} - \sum_{i\not=j}q_{i,j}k_{j}^{A} &= 1 \\
+\text{Matrix Form}}\\
+-Q_{i,j} k^{A}_{j} = \mathbf{1}[i \not\in A]
+\end{eqnarray*}  
+
+* Method and Model Implementation
+** PM4PY
+The analysis below was performed using =PM4PY 1.1.23= cite:aless2019process , =scipy 1.2.1= cite:scipy  , =numpy 1.16.2=,and =pandas 0.24.2= cite:mckinney-proc-scipy-2010  on =Python 3.7=, . 
+Python and pandas were used to manipulate, preprocess and tabulate the data while process mining.
+
+PM4PY was used to perform the bulk of the process mining specific operations.
+- manipulating data on a per-trace basis(sampling, filtering by occurance) 
+- implementing and fitting directly-follows graphs, petri nets and process trees
+- conformance checking, calculations of fitness, precision and generalisation and calculation of event frequency and duration through token-based replay 
+- generation of transition graphs from petri nets
+
+=scipy= and =numpy= were used where necessary to create and manipulate matrices, as well as for linear algebra routines used to solve systems of equations and investigate linear algebraic properties of those matrices. 
+** Discovering a suitable workflow net
+The discovery of a workflow net looks like this
+
+$[\text{Event Log}] \to [\text{Directly Follows Graph}] \to [\text{Process Tree}] \to [\text{Petri Net }(sound,safe)]$
+
+
+However, before doing so, a few caveats on using =PM4PY='s =IMDFb= algorithm must be heeded. The =IMDFb= algorithm is based on the $IM_D$ miner presented in cite:10.1007/978-3-319-19237-6_6 
+*** Inductive miner and noise sensitivity 
+The inductive miner uses every trace in the event log, regardless of its completion status, start activity, finishing activity, and outlying properties of any positioning of activities in a trace or properties of the activities themselves. A workflow net discovered by the =IMDFb= miner will use invisible transitions $\tau$ to allow activities to be skipped and looped through. Infrequent behaviour will be accounted for in the model by adding a number of invisible transitions to the workflow net.
+
+
+For example, in an event log like
+${[a,b,c,d,e]^{10},[a,b,c,e]}$
+the =IMDFb= miner will account for $[a,b,c,e]$ by creating an invisible transition allowing $c\bullet$ to be transitioned out of without letting $d$ fire.
+That is, $\bullet(\bullet e) = \{d,\tau\}$
+A small error in data collection can cause many variants in the data like above to form and create many transition skipping $\tau$ transitions.
+This is generally not a problem but for noisy datasets, logical "structures" in the noise may end up creating erronious places that make sense in the context of the model but create extra complexity on the back of noise.
+
+Another example would include ${[a,b,c,d,e]^{10},[b,c,d,e]}$ 
+
+For example, ${[a,b,c,d,e]^{10},[a,b,c,e],[a,b,d,e],[a,b,e]}$ may be accounted for by creating an inclusive =OR= block over the transitions ${c,d,\tau}$.
+As the end goal of creating this workflow net is to investigate its time evolution with the transition graph, which scales exponentially with the number of places in the petri net, ways of representing the process that keep places in the petri net to a minimum are preferred.
+Many of these invisible transitions will rarely be used but could have a large effect on the model as a whole. At the same time, fitting to as much observed behaviour as possible is desirable as it allows the workflow net to include a greater amount of behaviour. 
+
+While care was taken to identify problematic infrequent behaviour, incomplete and empty traces, the fitness of the model would be effected with respect to the unfiltered data. A fit workflow net cannot account for out-of-sample activities, and so a balance must be struck between removing problematic traces and preserving model fitness. This is made quantifiable by the metrics defined in =PM4PY=.
+
+*** Preprocessing the data appropriately
+
+**** Invalid traces and activities
+In the context of process mining, there may be many different definitions of an invalid trace.
+For example, there may be extraneous unrelated activities in an event log that may be of interest to another investigation. To use the analogy in section (cake), if the aim is to create a cookbook, not every activity performed by a baker (eg. washing their hands, going on lunchbreaks, buying ingredients) may not be relevant to the task at hand.
+
+In general, this is true of real-life event logs where a massive amount of activity may be collected by middleware or logging software, but only a fraction of that activity is meaningful to the task at hand.
+
+
+In the situation where spaghetti models (see relevant chapter in cite:vanderAalst2016 ) are formed, insight could be gleaned from clustering traces on metadata such as who performed the process (see social network analysis available in cite:aless2019process ) or even using the block structure of workflow nets and analysing smaller blocks in larger workflow nets to gain understanding of a particular part of a process. 
+In addition, in the situation where a statistical model will be associated with each transition, it could be sensible to only create a process model using only activities that can be adequately explained in terms of its assumed distribution. For example, given that a Continuous Time Markov Chain is being used to describe the time evolution of the pricess, it could make sense to only fit a process model to activities that pass some standard of fit, like the Anderson-Darling test described above.  
+
+As such, filtering individual activities may simplify model creation significantly.   
+**** Infrequent Variants
+As can be seen in (variants section), many traces may only occur once or twice in a log and contain slight differences between their behaviour and the behaviour of the rest of the model. Removing these traces will often remove a number of skip transitions at the cost of the fitness of the model.
+
+
+**** Decreasing Factor method
+Another way to limit the effect of noisy traces on the process model would be to limit the permitted starting and ending activities that define a valid trace. By removing traces that do not have a valid, named starting point or ending point, you could remove structures in a workflow net that "go nowhere". In constrast, keeping traces with specific ending and starting activities may allow the process model in particular to hone in on particular "paths" through a petri net.
+This kind of filtering is supported in =PM4PY= cite:aless2019process by allowing a "decreasing factor" to be defined.
+For example, take a log ${[a,b,c,d,e]^{100},[b,d,c,e]^{50},[c,d,e]^{20},[d,e]^{2}}$.
+The starting activites of this log occur with the following frequencies.
+
+
+
+
+#+name: method-decreasingfactortable
+#+caption: a table showing the decreasing factors required to filter out each subsequently less frequent start activity.
+|                   | $a$ | $b$ | $c$ | $d$ |
+|-------------------+-----+-----+-----+-----|
+| Freq.             | 100 |  50 |  20 |   2 |
+| Decreasing Factor |   1 | 0.5 | 0.4 | 0.1 |
+
+
+
+Given a sequence of starting activities $s_{i} = [f(a),f(b),f(c),f(d)]$ sorted by frequency, the decreasing factor is defined as $1$ for the most common starting activity.
+For each most starting activity beyond that, it is defined as $D = \frac{f(s_{i+1})}{f_{s}}$
+The activities with decreasing factors above a specified $D^* > D$ are kept.
+For example, $D^* = 1$ will only accept traces beginning with $a$, while $D^* = 0.5$ will accept traces beginning with $a$ or $b$.
+Similarly, $D^* = 0.2$ will accept $a$, $b$ or $c$. A decreasing factor of $D^* = 0$ will accept all traces. 
+
+** Inspecting transition distributions
+*** Maximum Likelihood estimation of an exponential parameter
+The transitions of the workflow net were assigned transition rates through into two categories
+**** Visible Transitions
+Data was available for the amount of times over an event log this transition was activated as well as the amount of time it took for this transition to occur.
+The maximum likelihood estimator is the parameter $\hat{\theta}$ such that
+\begin{eqnarray*}
+\hat{\theta}^{*} = \underset{\hat{\theta}}{argmax} = l(\hat{\theta}\mid X_{i}) = \left( \frac{1}{n} \right)({\displaystyle \sum_{i=1}^{n}}) \ln[f(x_{i}\mid \hat{\theta})]
+\end{eqnarray*}
+$l$ here is known as the log-likelihood and is a way of parameterising a probability density function in a way that is amenable to optimisation. The maximised log-likelihood can be described as the "function with parameter $\hat{\theta}$ that is the most likely given the data" 
+ie. the value for $\hat{\theta}$ in the expression above that is *most likely* for all possible $\theta$.
+
+The maximum likelihood estimator for a given exponential distribution has a closed form expression related to the sample mean of the data.
+
+\begin{eqnarray*}
+\hat{\lambda}=\frac{1}{\overline{x}}=\frac{n}{\sum_{i} x_{i}}
+\end{eqnarray*}
+
+Because of the similarity of this expression to the sample mean, much of the stochastic properties of this estimator can be analysed in the same way as a sample mean.
+The asymptotic properties of the sample mean follow a central limit theorem, can be subject to t-tests and have confidence intervals of it's distributions.
+These maximum likelihood estimators were implemented using cite:scipy.
+**** Invisible transitions 
+Invisible transitions are accounted for differently than in =PM4PY= CTMC methods which ignore them completely.
+A transition system is created with a truncated Petri net without any invisible transitions using the =SIMPLE= algorithm able to capture most information.
+A different approach was taken in this work - accounting for invisible transitions by assigning them a sufficiently low value of $\lambda_{\tau} << \underset{\lambda_{i}}{\text{min}}[\lambda_{i}]$.
+This will be weighted further by accounting for the by finding the amount of times this invisible transition is used in the token-based replay to find transition probabilities.  
+*** Probabilities of transition from the token based replay
+The token based replay capabilities in =PM4PY= allow for the probabilities of using a particular transition from the data.
+Collected from these replays is the amount of times a place has a token in it.
+Every time a token is placed in a transition, a set of transitions are activated and ready to fire.
+A token is removed from a place as a transition after it fires. 
+Given the token based replay only replays traces that are seen in the data, we can assume that the ratio of times a transition is fired to the amount of times it *could be fired* ie. activated is a good estimator of probability of an activity occuring in a process.
+ie.
+
+\begin{eqnarray*}
+P_{i,j}^{S_{i}} \approx 
+\frac{\#(\text{transitions over  }t)}{\#(\text{activations of   } t)}
+\end{eqnarray*}
+
+
+
+** Turning a safe workflow net with invisible transitions into a Markov Chain
+Given the elements of $\lambda_{i} \in \Lambda$, and the probabilities of transition $P_{i,j}^{S_{i}}$ from the token based replay it is now possible to construct a transition rate matrix from the workflow net.
+But first, the transition system must be constructed by assigning a state to each combination of possible tokens in the workflow net cite:10.1007/3-540-52494-0_23  .
+The transitions in the transition system are allowed be duplicates of each other, and occur with the same probability as transitions in the stochastic petri net.
+Where multiple transitions lead from the same place to the other the workflow net to another, the following result is used to aggregate the transitions.
+\begin{eqnarray*}
+P\left(\min \left\{X_{1}, \ldots, X_{n}\right\}>x\right) &=P\left(X_{1}>x, \ldots, X_{n}>x\right) \\ &=\prod_{i=1}^{n} P\left(X_{i}>x\right) \\ &=\prod_{i=1}^{n} \exp \left(-x \lambda_{i}\right)=\exp \left(-x \sum_{i=1}^{n} \lambda_{i}\right)
+\\\implies \left(\min \left\{X_{1}, \ldots, X_{n}\right\}>x\right) \sim Exp\left(\sum_{i}\lambda_{i}\right)
+\end{eqnarray*}
+
+The matrix $Q$ as defined in the CTMC section can be now constructed as
+
+\begin{eqnarray*}
+\text{for}\;\;i\ne j\\
+q_{i,j} 
+&= p_{i,j}\lambda_i\\
+\text{for}\;\;i = j\\
+q_{i,i} 
+&=-\sum_{j \neq i} q_{i j} \\
+&=-\sum_{j \neq i} \lambda_{i} p_{i j} \\ 
+&=-\lambda_{i} \sum_{j \neq i} p_{i j} \\ 
+&=-\lambda_{i} \end{eqnarray*}
+
+$q_{i,i}$ can now be described as $\lambda_{\bullet t}$ for a given marking involving $\bullet t$ in the workflow net. The transition graph will have a corresponding set of nodes in it for the situation where a marking is placed in $\bullet t$, and will move away from it at a rate equal to the sum of the rates of the transitions heading out of the place. $q_{i,j}$ is then the rate at which markings in a petri net as described by the states in the transition graph change from marking $i$ to marking $j$. 
+** Time evolution
+Finding $Q$ opens up the possibility of finding everything defined in terms of $Q$ defined above.
+The notion of "closeness to completion" can be solved by solving the hitting time system of equations defined above and visualised with a graph showing the mean time until completion. 
+Then by evaluating solving the Kolmogorov Forward equation using the matrix exponential solution at different times, the time evolution of the system can be visualised.
+The diagram below shows an example of this time evolution. The blue areas are parts of the probability distribution with a low probability at that time, and the pink areas are parts of the probability distribution with a high probability at that time.
+
+
+
+#+ATTR_LATEX: :height 0.8\textheight :width 1\textwidth
+#+name: method-time-evolution 
+#+caption: A reachability graph coloured by the probability of being in each state at time $t$ ie. $P(t)$ Cyan states have probability 0, and pink states have probabilities close to 1 at the times shown. 
+[[./time-evolution.png]]
+#+LATEX: \pagebreak
+To get a better notion of "closeness", the mean time through the transition system from each state is shown below. 
+Times closer to 0 are coloured blue and higher times are more red.
+
+#+ATTR_LATEX: :width 1\textwidth
+#+name: method-time-distance
+#+caption: A reachability graph coloured by the mean hitting time it would take to get from this state to the end state =sink1=. Denoted $E_i[T_A] = k_i,A$ in the theory section, the more blue areas are close to 0 and the more red areas are close to the maximum of $E_i[T_A]$.  
+[[./innogy_final/innogy_final100pc_100dfdist_ts.png]]
+#+LATEX: \pagebreak
+** Variant analysis
+Where it exists and is not infinite, $\frac{1}{q_{i,j}}$ can be interpreted as a cost matrix
+by considering the expectation of an exponential distribution $E[Exp(\lambda_{i})] = \frac{1}{\lambda_{i}}$.
+This can be used to find the expected time to traverse a particular path in the transition graph, in comparison to solving a system of 
+equations to find an average hitting time over all paths between $i$ and $j$ $= E_{i}[T_{j}]$.
+Denoting the average time to transition from a state $i$ to state $j$ as $S_{i,j} = \frac{1}{q_{i,j}}$, we can consider the mean time along a path 
+a sequence of length $m$, $[v]_{k=0}^{k=m}$ such that $v_{0} = i, v_{m} = j$ 
+to be 
+\begin{eqnarray*}
+E[S_{i,j}] &= E\left[ {\displaystyle\sum_{k=1}^{k=m}} S_{k-1,k} \right]
+\end{eqnarray*}
+by the Chapman-Kolmogorov equation.
+
+Given a trace $\sigma = [a,b,c,d,e]$, the mean time taken to transition from $\bullet a$ to $e\bullet$ is
+\begin{eqnarray*}
+E_{\sigma}[S_{a,e}] &= E[S_{a,b} + S_{b,c} + S_{c,d} + S_{d,e}] \\
+&=E[S_{a,b}] + E[S_{b,c}] + E[S_{c,d}] + E[S_{d,e}]] \;\;\text{by linearity of} E[\cdot]}
+\end{eqnarray*}
+These means not agreeing would indicate that the Chapman-Kolmogorov equation does *not* hold, indicating that the memorylessness property does not hold.
+Welch's test (t-test for populations with unequal variances) is used to determine the null hypothesis for each variant
+where $E_{\sigma}[S_{i,j}]$ is the expected time taken to go from   
+ \begin{eqnarray*}
+H_{0}: E_{\sigma}[S_{i,j}] &= {\displaystyle \sum_{k=1}^{k=m}}E[S_{k-1,k}] \
+&= {\displaystyle \sum_{k=1}^{k=m}}\frac{1}{q_{k-1,k}}   
+\end{eqnarray*}
+In the data, $E_{\sigma}[S_{i,j}]$ would be the mean of the times to complete the process through the variant $\sigma$, and the sum would be the sum of the fit activity times.
+If these are not equal, it means the Chapman-Kolmogorov equation does not hold, which indicates that the conditions in which it holds (ie. the assumption that the process is a time-homogeneous memoryless stochastic process) are not holding as they should. 
+* Results
+  :PROPERTIES:
+  :header-args: :tangle yes :async no :exports results :eval yes 
+  :END:
+
+
+** Receipts processing
+This data file is provided as an example data file provided by =PM4PY=.
+Each transition is denoted by an alphanumeric character and represents an activity in the process.
+
+
+#+name:results-unique_activities
+#+BEGIN_SRC jupyter-python :session final :display org-table :results raw :pandoc t :exports results 
+dataframe[["concept:name","concept:name:old"]].drop_duplicates()
+#+END_SRC
+
+
+
+
+
+
+
+There are a number of ways to slice this dataset in order to produce a workflow net.
+Using the methods outlined above.
+
+
+**** Fitting on all variants, Decreasing Factor = 0.5 
+***** Directly Follows graph and Workflow Net
+
+#+name:receiptsFINAL100pc_50dfnetsanddfgs
+#+caption: The petri nets (top) and directly follows graphs (bottom) annotated with average times (left) and transition frequency (right)
+[[./receiptsFINAL/receiptsFINAL100pc_50dfnetsanddfgs.png]]
+#+LATEX: \pagebreak
+Not all behaviour in the log is captured in this net. A decreasing factor as described above is used to filter the starting and ending activities of the traces. 
+This forces the traces to begin and end like $[0,\ldots,g]$.
+This cleans up a significant amount of behaviour in the log which can be interpreted as traces that fail to start or complete properly, eliminating a source of noise.
+Some transitions come from low-frequency activities but are allowed as they begin and end with the allowed beginnings and endings.
+In addition, some very common variants (example, $[0]$, a trace that is started but nothing else, the third most common variant), are removed, which removes many of the "skip" invisible transitions.
+Allowing for these activities creates more generality in the model, but removes the ability to account for all but "clean" processes. 
+Less of the behaviour in the log is skippable. 
+The large looped =XOR= split containing the events $1$ and $5$, still exists. 
+Significant numbers of visible transitions have a high frequency in the replay and as such indicate that "rules" in the data have been found, 
+and where invisible transitions occur, they are used to connect important visible transitions.
+
+
+#+name:results-receipts--100pc_50df_netsummary
+#+BEGIN_SRC jupyter-python :session final :pandoc t :exports results 
+pickle.load(open("./receiptsFINAL/receiptsFINAL100pc_50dfnetsummarydf.pkl","rb"))
+#+END_SRC
+
+
+The model fits on most of the data using $57\%$ of the data, of which $89\%$ of traces fit the data. 
+The simplicity and generality of the model are less good than the model above, considering the aim of fitting to less data was to simplify the model at the cost of generality.
+
+***** Activities
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: receiptsFINAL100pc_50dfpanel
+#+caption: The histograms of the times taken to cross a particular transition. 
+[[./receiptsFINAL/receiptsFINAL100pc_50dfpanel.png]]
+#+LATEX: \pagebreak
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: receiptsFINAL100pc_50dfpanel
+#+caption: The empirical CDFs of the times taken to cross a particular transition.
+[[./receiptsFINAL/receiptsFINAL100pc_50dfpanel_cdfs.png]]
+#+LATEX: \pagebreak
+
+
+#+name:results-receipts--100pc_50df_transitiondf
+#+BEGIN_SRC jupyter-python :session final :pandoc t 
+nice(pickle.load(open("./receiptsFINAL/receiptsFINAL100pc_50dftransitiondf.pkl","rb")))
+#+END_SRC
+
+#+begin_table
+#+LATEX:\resizebox*{1\textwidth}{!}{
+#+ATTR_LATEX: :align |c|c|c|c|c|c|c|c|c|c| :booktabs t 
+#+LATEX:}
+#+end_table
+The histograms of the activity times that a very sharp exponential function may be fittable to this data.
+The tails of the fit distribution hold the most disagreement with the data. In most cases, the data is skewed right
+and where it isn't, it is usually unskewed.
+
+The CDF plots show that that while the fits visually agree quite well with the data
+$R^2 >0.8$, the tails of the distributions mostly disagree with the 
+Anderson-Darling null hypothesis (at a $15\%$ significance level) that the data was sampled from an exponential distribution.
+It is worth noting that most of the cases where the null hypothesis was not rejected, the sample size was small, 
+the sample error of the rate parameter $\lambda_i$ was large, which allowed for
+some "plausible acceptability" that the samples came from an exponential distribution.
+
+
+
+***** Modelled time-evolution
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: receiptsFINAL100pc_50dfdist_ts
+#+caption: A reachability graph coloured by the mean hitting time it would take to get from this state to the end state =sink1=. Denoted $E_i[T_A] = k_i,A$ in the theory section, the more blue areas are close to 0 and the more red areas are close to the maximum of $E_i[T_A]$.  
+[[./receiptsFINAL/receiptsFINAL100pc_50dfdist_ts.png]]
+#+LATEX: \pagebreak
+The above diagram shows the transition system of the workflow net above. 
+Two areas of roughly equal finish time can be identified.
+The red area indicates the states of the workflow net after the transition $0$ which contain most of the longer transitions - roughly divided by the large =OR= split and the states where the =OR= split can be re-entered.
+The set of transitions between =p_101= and =p_111= fires quite slowly but still contains transitions ${5,1}$ which are quite frequent.
+One notable difference between this and the model without the decreasing factor is that the transition $j$ is no longer present.
+This rare activity takes up quite a lot of time and without it, the process is able to complete more quickly.
+The transitions $\{0,g\}$ correspond lead to start and end states cleanly.
+Most invisible transitions have a high transition rate to allow them to not affect the overall time evolution.
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name:receiptsFINAL100pc_50dftime-evolution
+#+caption: The reachability graph of the workflow net above. the more blue areas are close to 0 and the more red areas are close to the maximum of $E_i[T_A]$.
+[[./receiptsFINAL/receiptsFINAL100pc_50dftime-evolution.png]]
+#+LATEX: \pagebreak
+***** Variant analysis
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name:receiptsFINAL100pc_50dfpanel_variant_hist
+#+caption: The histograms of time taken of the 9 most frequent variants. Labelled are the Expected hitting time $E_{start}[T_{end}]$ the sum of activity times $E_{start}[S_\sigma]$, and the sample mean of the variants.   
+[[./receiptsFINAL/receiptsFINAL100pc_50dfpanel_variant_hist.png]]
+#+LATEX: \pagebreak
+Above is a graph of the 9 most common variants accounting for a large amount of behaviour in the log.
+The null hypothesis that the mean variant time is equal to the sum of the mean activity times is rejected at the 95% confidence level for most of these, but
+accepted for the variants $[0,5,1,3,4,g]$, $[0,1,3,5,4,g]$, $[0,1,2,1,3,4,5]$ and $[0,1,3,4,5,6,5,g]$.
+This null hypothesis is associated with the notion of memorylessness in the workflow net, and rejecting it implies that something
+in the variant implies that it's mean time is significantly different from the sum of the times that comprise it.
+
+
+
+#+name:results-receipts--100pc_50df_variants_df_uncursed
+#+BEGIN_SRC jupyter-python :session final :results raw :eval no
+printorgtable(nice(pickle.load(open("./receiptsFINAL/receiptsFINAL100pc_50dfvariantdf.pkl","rb"))).head(5))
+#tables cursed
+#just print the output
+#+END_SRC
+
+
+#+begin_table
+#+latex:\resizebox*{1\textwidth}{!}{
+\begin{tabular}{lrrrrrrr}
+\hline
+ variant         &   Count &   Fitness &   Path Probability &   Sum of mean act. times &   se(Mean act. times) &   Mean Case Duration &   P(Mean act. times = Mean Case Duration) \\
+\hline
+ 0,1,3,4,5,g     &     713 &  1        &        1.06241e-08 &                   503900 &           1.01302e+07 &               377880 &                                0.00657665 \\
+ 0,5,1,3,4,g     &      40 &  0.857143 &        1.08075e-09 &                   503900 &           1.01302e+07 &               475511 &                                0.929719   \\
+ 0,1,5,3,4,g     &      28 &  0.857143 &        1.08075e-09 &                   503900 &           1.01302e+07 &               256660 &                                0.00768059 \\
+ 0,1,3,5,4,g     &      12 &  0.857143 &        1.06241e-08 &                   503900 &           1.01302e+07 &               353206 &                                0.555548   \\
+ 0,1,2,1,3,4,5,g &       6 &  1        &        5.37103e-19 &                   740823 &           1.18152e+07 &               771063 &                                0.866693   \\
+\hline
+\end{tabular}
+#+latex:}
+#+end_table
+
+
+**** Fitting on 90% of variants, Decreasing Factor = 1 
+***** Directly Follows graph and Workflow Net
+#+name:receiptsFINAL100pc_50dfnetsanddfgs
+#+caption: The petri nets (top) and directly follows graphs (bottom) annotated with average times (left) and transition frequency (right)
+[[./receiptsFINAL/receiptsFINAL90pc_100dfnetsanddfgs.png]]
+#+LATEX: \pagebreak
+Not all behaviour in the log is captured in this net. A decreasing factor as described above is used to filter the starting and ending activities of the traces. 
+This forces the traces to begin and end like $[0,\ldots,g]$.
+This cleans up a very large amount of behaviour in the log, only some of which can be interpreted as traces 
+that fail to start or complete properly.
+The =XOR= split containing the events $1$ and $5$, still exists but in a smaller form, now represented in a way that
+clearly shows concurrency between $5$ and $\{1,3,4\}$.
+Significant numbers of visible transitions have a high frequency in the replay and as such indicate that "rules" in the data have been found, 
+and where invisible transitions occur, they are used to connect important visible transitions.
+
+
+#+name:results-receipts--90pc_100df_netsummary
+#+BEGIN_SRC jupyter-python :session final :pandoc t :display org-table :exports results 
+pickle.load(open("./receiptsFINAL/receiptsFINAL90pc_100dfnetsummarydf.pkl","rb"))
+#+END_SRC
+
+The model fits on most of the data using $52\%$ of the data, of which $100\%$ of traces fit the data. 
+However, the Simplicity metric here punishes the model strongly for the number of places relative to the number of transitions
+which increases as a result of the =XOR= split. The generality for the model with respect to the filtered data is high.
+
+
+***** Activities
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: receiptsFINAL90pc_100dfpanel
+#+caption: The histograms of the times taken to cross a particular transition. 
+[[./receiptsFINAL/receiptsFINAL90pc_100dfpanel.png]]
+#+LATEX: \pagebreak
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: receiptsFINAL100pc_50dfpanel_cdfs
+#+caption: The empirical CDFs of the times taken to cross a particular transition.
+[[./receiptsFINAL/receiptsFINAL90pc_100dfpanel_cdfs.png]]
+#+LATEX: \pagebreak
+
+#+name:results-receipts--90pc_100df_transitiondf
+#+BEGIN_SRC jupyter-python :session final :pandoc t :display org-table :exports results 
+nice(pickle.load(open("./receiptsFINAL/receiptsFINAL90pc_100dftransitiondf.pkl","rb")))
+#+END_SRC
+
+#+ATTR_LATEX: :center nil  
+#+begin_table
+#+LATEX:\resizebox*{1\textwidth}{!}{
+#+ATTR_LATEX: :align |c|c|c|c|c|c|c|c|c|c| :booktabs t 
+#+LATEX:}
+#+end_table
+
+
+The histograms of the activity times show that a very sharp exponential function may be fittable to this data.
+The tails of the fit distribution hold the most disagreement with the data.
+
+The CDF plots show that that while the fits visually agree quite well with the data
+$R^2 >0.83$, the tails of the distributions disagree with the 
+Anderson-Darling null hypothesis (at a $15\%$ significance level) that the data was sampled from an exponential distribution.
+This show that there was not enough activity in the tail ends of the distribution to justify an exponential distribution for these activities.
+
+***** Modelled time-evolution
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: receiptsFINAL90pc_100dfdist_ts
+#+caption: A reachability graph coloured by the mean hitting time it would take to get from this state to the end state =sink1=. Denoted $E_i[T_A] = k_i,A$ in the theory section, the more blue areas are close to 0 and the more red areas are close to the maximum of $E_i[T_A]$.  
+[[./receiptsFINAL/receiptsFINAL90pc_100dfdist_ts.png]]
+#+LATEX: \pagebreak
+The above diagram shows the transition system of the workflow net above. 
+Two areas of roughly equal finish time can be identified.
+The red area indicates the states of the workflow net after the transition $0$ which contain most of the longer transitions - 
+roughly divided by "transitions before $4$" in red, and "transitions after $4$" in green, showing that $4$ is a bottleneck in this process.
+This rare activity takes up quite a lot of time and without it, the process is able to complete more quickly.
+The transitions $\{0,g\}$ correspond lead to start and end states cleanly.
+The only invisible transitions here are those involved in setting up the =OR= split.
+***** Variant analysis
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight :height 0.75\textheight
+#+name: receiptsFINAL90pc_100dfpanel_variant_hist
+#+caption: Histograms of the 9 most frequent variants of traces in the data. Various landmark times are shown above. 
+[[./receiptsFINAL/receiptsFINAL90pc_100dfpanel_variant_hist.png]]
+#+LATEX: \pagebreak
+
+Above is a graph of the 9 most common variants accounting for a large amount of behaviour in the log.
+The null hypothesis that the mean variant time is equal to the sum of the mean activity times is accepted for
+accepted for the variants $[0,5,1,3,4,g]$, $[0,1,3,5,4,g]$, and $[0,1,5,3,4,g]$. 
+This null hypothesis is associated with the notion of memorylessness in the workflow net, and rejecting it implies that something
+in the variant implies that it's mean time is significantly different from the sum of the times that comprise it.
+#+name:results-receipts--90pc_100df_variants_df
+#+BEGIN_SRC jupyter-python :session final :pandoc t :results raw :exports results :eval no
+printorgtable(nice(pickle.load(open("./receiptsFINAL/receiptsFINAL90pc_100dfvariantdf.pkl","rb")).head(10)))
+#+END_SRC
+
+#+begin_table
+#+latex:\resizebox*{1\textwidth}{!}{
+ \begin{tabular}{lrrrrrrr}
+ \hline
+  variant     &   Count &   Fitness &   Path Probability &   Sum of mean act. times &   se(Mean act. times) &   Mean Case Duration &   P(Mean act. times = Mean Case Duration) \\
+ \hline
+  0,1,3,4,5,g &     713 &         1 &           0.218234 &                  86889.2 &           2.44682e+06 &               377880 &                               5.42046e-10 \\
+  0,5,1,3,4,g &      40 &         1 &           0.218234 &                  86889.2 &           2.44682e+06 &               475511 &                               0.231614    \\
+  0,1,5,3,4,g &      28 &         1 &           0.218234 &                  86889.2 &           2.44682e+06 &               256660 &                               0.058206    \\
+  0,1,3,5,4,g &      12 &         1 &           0.218234 &                  86889.2 &           2.44682e+06 &               353206 &                               0.30562     \\
+ \hline
+ \end{tabular}
+#+latex:}
+#+end_table
+
+
+
+
+** Metadata from an Energy trading company 
+This event log is comprised of metadata on the data collection logs of an energy trading company.
+The structure is similar to the dataset above, but is much larger (159Mb vs. 2Mb)
+**** Fitting on 50% of the traces, Decreasing Factor = 0 
+***** Directly Follows graph and Workflow Net
+#+name:receiptsFINAL100pc_50dfnetsanddfgs
+#+caption: The petri nets (top) and directly follows graphs (bottom) annotated with average times (left) and transition frequency (right)
+[[./innogy_final/innogy_final50pc_0dfnetsanddfgs.png]]
+#+LATEX: \pagebreak
+Not all behaviour in the log is captured in this net. 
+The top 50% most frequent variants in this dataset were used to construct a process model.
+From these diagrams, it is clear that two different processes can be discovered: 
+- $[GC,\ldots,FW]$ and $[GC,\ldots,GK]$ 
+- $[CR,\ldots,CJ]$ and $[CR,\ldots,DK]$ 
+
+Additionally, the directly-follows graphs make it clear that two different chains of events are occuring.
+This would suggest more success may be had in confining future mining projects to one branch of this chain.
+
+
+#+name:results--innogy_final50pc_0dfnetsummarydf
+#+BEGIN_SRC jupyter-python :session final :pandoc t :display org-table :exports results 
+pickle.load(open("./innogy_final/innogy_final50pc_0dfnetsummarydf.pkl","rb"))
+#+END_SRC
+
+
+
+The model fits on most of the data using $51\%$ of the data, of which $93\%$ of traces fit the data. 
+The model has relatively simple behaviour and clearly describes the majority of the data in the filtered log.
+However, the two different processes are joined unnecessarily, creating more places and complexity than required, resulting in the simplicity model being lower than expected.
+
+***** Activities
+
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: innogy_final50pc_0dfpanel
+#+caption: The histograms of the times taken to cross a particular transition. 
+[[./innogy_final/innogy_final50pc_0dfpanel.png]]
+#+LATEX: \pagebreak
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: innogy_final50pc_0dfpanel_cdfs 
+#+caption: The empirical CDFs of the times taken to cross a particular transition.
+[[./innogy_final/innogy_final50pc_0dfpanel_cdfs.png]]
+#+LATEX: \pagebreak
+
+
+
+
+#+name:results--innogy_final50pc_0dftransitiondf
+#+BEGIN_SRC jupyter-python :session final :pandoc t :display org-table :exports results 
+nice(pickle.load(open("./innogy_final/innogy_final50pc_0dftransitiondf.pkl","rb")))
+#+END_SRC
+#+ATTR_LATEX: :center nil 
+#+begin_table
+#+LATEX:\resizebox*{1\textwidth}{!}{
+#+ATTR_LATEX: :align |c|c|c|c|c|c|c|c|c|c| :booktabs t 
+#+LATEX:}
+#+end_table
+
+
+
+The CDF plots show that that while the fits visually agree quite well with the data
+$R^2 >0.88$, the distributions disagree with the 
+Anderson-Darling null hypothesis (at a $15\%$ significance level) that the data was sampled from an exponential distribution.
+The fact that all tests rejected the null hypothesis at such a low significance level does not entirely rule out the possibility of
+memorylessness - it should be noted that all these tests were carried out independently and the introduction of distributions
+where memorylessness does not hold may cause assumptions to fail further on.
+
+***** Modelled time-evolution
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: innogy_final50pc_0dfdist_ts
+#+caption: A reachability graph coloured by the mean hitting time it would take to get from this state to the end state =sink1=. Denoted $E_i[T_A] = k_i,A$ in the theory section, the more blue areas are close to 0 and the more red areas are close to the maximum of $E_i[T_A]$.  
+[[./innogy_final/innogy_final50pc_0dfdist_ts.png]]
+#+LATEX: \pagebreak
+
+The above diagram shows the transition system of the workflow net above. 
+The $[CR,\ldots,CJ]$ and $[CR,\ldots,DK]$ process chains complete much slower than the other chains.
+This is mostly due to the $[CR,\ldots]$ chains having to pass through $DJ$, which has a mean completion time
+orders of magnitude higher than the rest of the activities.
+In addition, only 22% of traces pass through the  $[CR,\ldots]$ chain, meaning by $t=1000$ in the diagram below, most traces have completed. 
+[[./innogy_final/innogy_final50pc_0dftime-evolution.png]]
+#+LATEX: \pagebreak
+
+
+***** Variant analysis
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: innogy_final50pc_0dfpanel_variant_hist
+#+caption: Histograms of the 9 most frequent variants of traces in the data. Various landmark times are shown above.
+[[./innogy_final/innogy_final50pc_0dfpanel_variant_hist.png]]
+#+LATEX: \pagebreak
+
+Above is a graph of the 9 most common variants in the log. 
+The null hypothesis that the mean variant time is equal to the sum of the mean activity times is rejected at the 95% confidence level
+by the traces in the  $[CR,\ldots]$ chain, and accepted by the traces in the $[GC,\ldots]$ chain. 
+This null hypothesis is associated with the notion of memorylessness in the workflow net, and accepting it implies that the process is memoryless. 
+The claim that the $[GC,\ldots]$ chain is memoryless is further investigated later, as it contrasts with the implications of the Anderson-Darling tests above.
+#+name:results-receipts--50pc_0df_variants_df
+#+BEGIN_SRC jupyter-python :session final :pandoc t :exports results :eval no
+printorgtable(nice(pickle.load(open("./innogy_final/innogy_final50pc_0dfvariantdf.pkl","rb")).head(10)))
+#+END_SRC
+
+
+#+begin_table
+#+latex:\resizebox*{1\textwidth}{!}{
+\begin{tabular}{lrrrrrrr}
+\hline
+ variant                                &   Count &   Fitness &   Path Probability &   Sum of mean act. times &   se(Mean act. times) &   Mean Case Duration &   P(Mean act. times = Mean Case Duration) \\
+\hline
+ GC,GD,GE,GJ,GK,FW                      &   14223 &  1        &          0.779394  &                  222.605 &       40644.1         &              203.544 &                              0.432868     \\
+ GC,GD,GE,GJ,FW,GK                      &   14222 &  1        &          0.779394  &                  222.605 &       40644.1         &              245.113 &                              0.438304     \\
+ GC,GD,GE,GF,GG,GH,GI,FW,GK             &    2688 &  1        &          0.779394  &                  291.519 &       44033           &              292.121 &                              0.990878     \\
+ GC,GD,GE,GF,GG,GH,GI,GK,FW             &    2628 &  1        &          0.779394  &                  291.519 &       44033           &              263.699 &                              0.57936      \\
+ CR,CS,CU,AE,DI,DH,DJ,AP,DD,DL,CJ,DK    &    2597 &  1        &          0.0832699 &               159080     &           1.55508e+07 &            56119.8   &                              0            \\
+ CR,CS,CU,AE,DI,DH,DJ,AP,DD,DK,CJ       &    1448 &  0.916667 &          0.204126  &               159075     &           1.55504e+07 &           330501     &                              2.70982e-294 \\
+ CR,CS,CU,AE,DI,DH,DJ,AP,DD,CJ,DK       &    1447 &  0.916667 &          0.204126  &               159075     &           1.55504e+07 &           325050     &                              5.06125e-272 \\
+ CR,CS,CU,AE,CP,DI,DH,DJ,AP,DD,DL,CJ,DK &    1409 &  1        &          0.0832699 &               159081     &           1.55508e+07 &           195501     &                              9.82738e-20  \\
+ CR,CS,CU,AE,DI,DH,DJ,AP,DD,DK,DL,CJ    &    1381 &  1        &          0.0832699 &               159080     &           1.55508e+07 &            63713.7   &                              3.11622e-318 \\
+ CR,CS,CU,AE,DI,DH,DJ,AP,DD,DL,DK,CJ    &    1274 &  1        &          0.0832699 &               159080     &           1.55508e+07 &            49867     &                              0            \\
+\hline
+\end{tabular}
+#+latex:}
+#+end_table
+**** Fitting on 100% of the traces, Decreasing Factor = 1 
+***** Directly Follows graph and Workflow Net
+
+#+name:receiptsFINAL100pc_50dfnetsanddfgs
+#+caption: The petri nets (top) and directly follows graphs (bottom) annotated with average times (left) and transition frequency (right)
+[[./innogy_final/innogy_final100pc_100dfnetsanddfgs.png]]
+
+
+Only variants beginning as $[GC,\ldots]$ in this event log were used to construct a process model.
+This process consists of a looped =OR= structure and very little else. While some are more frequent, 
+the directly follows graph without the nodes ${GC,FX}$ is strongly connected, meaning that it is possible to get to any node from any node.
+While some of the relations between activities are infrequent, there is no clear visual or causal relationship
+ between the nodes in this graph beyond the idea of "choose a number of these activities, then stop abruptly".
+The causal chain seen in $[GC,\ldots]$ in the previous petri net is not seen here as more data is used.
+
+#+name:results-receipts--100pc_100df_netsummary
+#+BEGIN_SRC jupyter-python :session final :pandoc t :display org-table :exports results 
+pickle.load(open("./innogy_final/innogy_final100pc_100dfnetsummarydf.pkl","rb"))
+#+END_SRC
+
+This model completely fits the data, for what data it uses. This model generalises out to most behaviour in the log and is quite simple in
+terms of place numbers and complexity.
+
+***** Activities
+
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: innogy_final100pc_100dfpanel
+#+caption: The histograms of the times taken to cross a particular transition. 
+[[./innogy_final/innogy_final100pc_100dfpanel.png]]
+#+LATEX: \pagebreak
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: innogy_final100pc_100dfpanel
+#+caption: The empirical CDFs of the times taken to cross a particular transition. 
+[[./innogy_final/innogy_final100pc_100dfpanel_cdfs.png]]
+#+LATEX: \pagebreak
+
+
+#+name:results-innogy_final100pc_100dftransitiondf
+#+BEGIN_SRC jupyter-python :session final :pandoc t :display org-table :exports results 
+nice(pickle.load(open("./innogy_final/innogy_final100pc_100dftransitiondf.pkl","rb")))
+#+END_SRC
+
+
+
+#+ATTR_LATEX: :center nil  
+#+begin_table
+#+LATEX:\resizebox*{1\textwidth}{!}{
+#+ATTR_LATEX: :align |c|c|c|c|c|c|c|c|c|c| :booktabs t 
+#+LATEX:}
+#+end_table
+
+The CDF plots show that that while the fits visually agree quite well with the data
+$R^2 >0.88$, the distributions disagree with the 
+Anderson-Darling null hypothesis (at a $15\%$ significance level) that the data was sampled from an exponential distribution.
+The fact that all tests rejected the null hypothesis at such a low significance level does not entirely rule out the possibility of
+memorylessness - it should be noted that all these tests were carried out independently and the introduction of distributions
+where memorylessness does not hold may cause assumptions to fail further on.
+
+***** Modelled time-evolution
+
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name:innogy_final100pc_100dfdist_ts
+#+caption: A reachability graph coloured by the mean hitting time it would take to get from this state to the end state =sink1=. Denoted $E_i[T_A] = k_i,A$ in the theory section, the more blue areas are close to 0 and the more red areas are close to the maximum of $E_i[T_A]$.  
+[[./innogy_final/innogy_final100pc_100dfdist_ts.png]]
+#+LATEX: \pagebreak
+
+The above diagram shows the transition system of the workflow net above. 
+All traces pass through the series of transitions between =p_51= and =p_61=. The minimum rate for the set of transitions is the sum of the transition rates as shown in the methods section. 
+[[./innogy_final/innogy_final100pc_100dftime-evolution.png]]
+#+LATEX: \pagebreak
+***** Variant analysis
+#+ATTR_LATEX: :width 1\textwidth :height 0.75\textheight
+#+name: innogy_final100pc_100dfpanel_variant_hist
+#+caption: Histograms of the 9 most frequent variants of traces in the data. Various landmark times are shown above.
+[[./innogy_final/innogy_final100pc_100dfpanel_variant_hist.png]]
+#+LATEX: \pagebreak
+Above is a graph of the 9 most common variants in the log. 
+The null hypothesis that the mean variant time is equal to the sum of the mean activity times is rejected at the 95% confidence level
+by all process variants. 
+Including more data from the less frequent variants in the $[GC,\ldots]$ chain results in the hypotheses of a memoryless process being rejected.  
+
+#+name:results-receipts--100pc_100df_variants_df
+#+BEGIN_SRC jupyter-python :session final :pandoc t :eval no :exports results 
+printorgtable(nice(pickle.load(open("./innogy_final/innogy_final100pc_100dfvariantdf.pkl","rb")).head(10)))
+#+END_SRC
+
+
+#+begin_table
+#+latex:\resizebox*{1\textwidth}{!}{
+\begin{tabular}{lrrrrrrr}
+\hline
+ variant                          &   Count &   Fitness &   Path Probability &   Sum of mean act. times &   se(Mean act. times) &   Mean Case Duration &   P(Mean act. times = Mean Case Duration) \\
+\hline
+ GC,GD,GE,GJ,GK,FW                &   14223 &         1 &          0.0795818 &              2.67746e+06 &           1.22333e+08 &        203.544       &                               0           \\
+ GC,GD,GE,GJ,FW,GK                &   14222 &         1 &          0.0795818 &              2.67746e+06 &           1.22333e+08 &        245.113       &                               0           \\
+ GC,GD,GE,GF,GG,GH,GI,FW,GK       &    2688 &         1 &          0.0472778 &              2.97749e+06 &           1.51607e+08 &        292.121       &                               0           \\
+ GC,GD,GE,GF,GG,GH,GI,GK,FW       &    2628 &         1 &          0.0472778 &              2.97749e+06 &           1.51607e+08 &        263.699       &                               0           \\
+ GC,GD,GE,GF,GG,GH,AH,GH,GI,FW,GK &     485 &         1 &          0.0334108 &              3.23841e+06 &           1.8197e+08  &          1.57693e+06 &                               2.45831e-12 \\
+ GC,GD,GE,GF,GG,GH,AH,GH,GI,GK,FW &     418 &         1 &          0.0334108 &              3.23841e+06 &           1.8197e+08  &          1.55043e+06 &                               5.74871e-13 \\
+ GC,GD,GE,GF,GG,GH,GI,AC,GA,GK,FW &     382 &         1 &          0.0334108 &              2.97749e+06 &           1.51607e+08 &     579383           &                               1.98755e-87 \\
+ GC,GD,GE,GF,GG,GH,GI,AC,GA,FW,GK &     338 &         1 &          0.0334108 &              2.97749e+06 &           1.51607e+08 &     754941           &                               2.1069e-38  \\
+ GC,GD,GE,GF,GG,GH,GI,AC,FW,GK    &     270 &         1 &          0.039744  &              2.97749e+06 &           1.51607e+08 &      19157.8         &                               0           \\
+ GC,GD,GE,AJ,GE,GJ,GK,FW          &     267 &         1 &          0.0562397 &              2.98018e+06 &           1.84405e+08 &          6.16881e+06 &                               1.66722e-08 \\
+\hline
+\end{tabular}
+#+latex:}
+#+end_table
+
+
+* Discussion
+** Modelling notes
+One useful factor about this formulation is that it has the capacity to be
+very simple and very scalable. Finding a workflow net that is simple (cite:aless2019process )s definition of simplicity can be done by performing some data preprocessing.
+A simple model employs a low amount of states in the transition graph to describe a majority of the activity in the process.
+It would be the transitions that make up the majority of the behaviour. In addition
+the $IM_D$ algorithms tend to be quite efficient in terms of memory and running time
+due to the fact that they they rarely have to to look up in the log cite:10.1007/978-3-319-19237-6_6  . Time evolution calculations can be computationally intensive - ($O(n^{3})$ calculations in the worst case scenario to solve a 
+system of equations in $n$ unknowns - but the worse case scenario can be approximated
+through approximate solutions such as least squares solutions, 
+or even solved exactly and efficiently where the structure of the process results in a particular structure in the matrix.
+Certain Continuous-Time Markov chains follow particular known matrix structures and tend to be sparse. For example, the matrix density in the biggest case run
+here being no more than $0.25$. 
+
+One particular obstacle found in the implementation of the model was that of numerical
+underflow. While this was dealt with by using higher precision arithmetic it would be
+advisable to anyone attempting build a transition matrix to use the log domain of the probabilities
+to evaluate sums of probabilities and possibly even to do the matrix calculations. 
+
+The structure of many processes could be approximated in a Markov sense but only in so far as the process is memoryless in general. 
+It is possible that processes may be completed in a probabilistic sense - and that may also be a route for process mining in general.
+
+** Noise detection
+Noise detection is a part of process mining that has been partly implemented in =PM4PY= at time of writing.
+Without a notion of being able to detect traces that are a product of noise, it is on the analyst to determine in the context of the analysis what traces count as noise.
+Without a noise-free log to work with and compare with of the same process, this can be approximated by taking frequent events more seriously than infrequent 
+events under the assumption that correct behaviour is the most common. Using the language of sequence alignment, using metrics such as edit distance, Levenshtein distance or Hamming distance on
+traces and variants thereof can be a way to denoise traces.
+
+For this analysis, the decreasing factor and percentage of data kept must be parameterized in a way that is most convenient for the analyst in the context of the
+use of the process model. Ideally a hyperparameter search could be done to find a optimal clean dataset that sense of optimality must be decided by
+the analyst themselves. In the context of trying to predict the time evolution of processes, 
+The ability to recombine noisy variants in a noisy event log dataset back into the the variants they are most likely to represent would result in having more information on the distribution of each transition.
+
+** Completion time 
+The general question of how long a process takes has been tackled before in the literature. 
+A core question of the research done here was to see if the activities in a process log in an event log could be modelled like the states in a Markov Chain.
+
+The Markov Property as a whole depends on a idea of 
+memorylessness. Memorylessness is verified in this work by testing that the probability of going from one place in the 
+petri net to another does not depend on any previous travel through the workflow net before it. 
+However on inspection and investigation it is likely that a strong notion of memorylessness may be too stringent for general use and may result in incorrect estimations of time taken to complete the process.
+It should be noted that the continuous time Markov chain model for transition systems and petri nets is a very useful and natural generalization of 
+a petri net, and a simple representation of a stochastic petri net, but it should be with strong caveats bearing in mind that a process - debatably by design - have a sense of memory to it. 
+Constructs built with petri nets can represent this memory but the degree to which this memory is represented in the probabilistic model of that process is difficult question.
+One possible direction for this work to go in in the future would be to investigate the modelling potential of $n^{th}$ order Markov chains ie. Markov chains with memory on transition systems. 
+However knowing that transition systems have a state explosion problem in the event of high numbers of parallel processes. Fitting a $n^{th}$ order Markov chains requires a fitting on "bigrams (2nd order)" or "trigrams (3rd order)" of states and will require the amount of states to rise exponentially.
+These models could become very intractable very quickly especially for larger processes and logs. 
+
+** Fit quality
+Use of the exponential distribution in this work is a sticking point for the work as a whole however this is a core approximation of of the memoryless stochastic petri nets structure.
+Without the memoryless firing rate assumption a more sophisticated way of determining which transitions in a workflow net actually fire must be found by making assumptions about
+firing known as firing rules. This adds complexity to the model.  
+Analysis of these stochastic petri nets called generalized stochastic petri nets tends to use queuing theory and requires in enforcing a firing policy on the petri net. 
+Processes tend to follow unspecified distributions in general, but if reasonable hypotheses about the distribution of the processes can be generated this model can work very well.
+
+Another option is to fit a model using standard machine learning techniques and regression techniques to the event log. This would involve creating a model that would be fit using $|t|-1$ dummy variables to represent the $|t|$ transitions.
+transitions as dummy variables. This could allow the finishing time of the process to be approximated using classical regression techniques. This could be further refined by using metadata on the activities to find correlations between them 
+total finishing time.
+Another alternative would be to use a prefix log: a version of the event log that contains cumulative information on each trace as it occurs. A prefix log would be an event log
+that for each activity added onto a case in an event log, the prefix log would create a new subcase of that case that would contain all the activities added to the trace cumulatively. 
+This prefix log would get very large very quickly but this would allow for machine learning algorithms to fit on in-progress processes.
+This has been done before and has been done in (cite:Polato_2018 ) using support
+ vector regression and neural networks cite:tax2017predictive. 
+In addition much success has been had in using machine learning techniques such as decision trees to perform root cause analysis - this has been implemented in =PM4PY= cite:aless2019process .
+on the process. Features such as long transition times and sources of bottlenecks in a process can be found using supervised learning techniques or even unsupervised techniques to cluster the traces 
+and predict process times by correlating the the meta data in those processes with the likelihood of a certain process having a high or anomalous time. 
+Furthermore, work has been done in using social network graphs to investigate if people or specific agents such as machines are correlated with particular states of processes.
+ 
+While the examples given in this project have shown this method is a poor fit for the data, there are a number of alternative formulations of the process that can allow for time prediction, even still staying
+within the realm of Markovian processes. 
+It may also be possible to partition workflow nets in a way to exploit the concept of memory. By delegating the concept of memory to a suitable petri net construct, chains of memoryless
+places and transitions could replace single problematic transitions. This would increase the amount of states and transitions in each model but 
+would theoretically allow a degree of memory to be dealt with in a model.
+
+One other factor that resulted in the exponential distribution being a poor fit for
+ many of the transitions is that some of the data had minimum values
+ greater than zero. The usual memoryless property of
+ the exponential distribution relies on the use of only the parameter $lambda$ inside the exponential
+ function and does not allow for a location parameter to be used: ie. Some implementations of statistical software, =scipy= in particular, allow fitting to exponential distributions with a location parameter by default.
+This would look like $P(t;\lambda,t_{0}) = \lambda e^{-\lambda (t + t_{0})}$
+While this would improve the fit of the model especially in the tails, this parameterisation violates the memorylessness property in the regime where $t<t_{0}$.
+
+It may also be possible to use a Markovian representation of the model but translating the process to a time inhomogeneous regime to approximate the location parameterisation in such a way that 
+$e^{\lambda(t)t} \approx e^{\lambda (t + t_{0})}$. This would end up being  $\lambda(t) \approx -\lambda (1 + \frac{t_{0}}{t})$. This would increase the complexity of the model by a large margin by having to find an extra parameter for each transition but
+could help the fit by alllowing the transition matrix as a whole to change over time. 
+
+** Memory testing
+Multivariate testing for memorylessness in the process as a whole may add some additional evidence to strengthen a hypothesis that a process is memorylessness.  
+In this case univariate tests suffice due to the sensitivity of the the memorylessness condition.
+Any evidence of memory in even one transition in the process fundamentally violates the memorylessness conditin and one rejected null hypothesis implies a wholesale rejection of memorylessness. 
+Worth noting is how how much of the data seems to follow a exponential distribution to the human eye but fails the Anderson-Darling tests. These tests are very sensitive in the tail 
+end of a distribution and this is notably where less data was available - the very nature of studying the tail regions of a distribution necessitates an abundance of data.
+This would lead to more data and more accurate evaluation of the distributions of the transitions. 
+With more data it may be possible to actually surmise that the the distributions studied here in were in fact exponential but simply did not have enough data to find rare behaviour. 
+
+
+* Conclusion
+As can be seen from the results above the process mining segment of the modelling process tends to fit the data quite well and in some cases the $IM_D$ algorithms, 
+actually achieve full fitness to even large datasets. 
+This is by design due to the process tree construction but as mentioned before this causes a lot of redundancies in the models found.
+These redundancies must be carefully trimmed down dude with careful processing of the data.
+It was the case that in both of these data sets both the decreasing factor method and 
+the removal of infrequent variants improved the fit in different but important ways. Using one method over the other tended to to create models that were more general in a sense
+but also less succinctly captured the mainstream process. 
+Simply just removing infrequent variants from the data would create a smaller more simple model
+but would sometimes lead to models overfit and forced structures on what ended up being unstructured sequences of events, as was seen working with the energy trading metadata with the causal chain when only fit to the top
+50% most frequent variants in the data.
+In contrast relying on only the decreasing factor method would result in workflow nets that would start and end simply but use infrequent behaviour between the start and
+end points, keeping the model general but including many infrequent events which may turn out to be noise.  
+* References
+<<bibliography_link>>
+bibliographystyle:unsrt
+[[bibliography:./finalreport.bib]]
+
